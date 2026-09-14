@@ -46,3 +46,27 @@ create table if not exists public.monthly_cost_items (
 alter table public.cost_categories enable row level security;
 alter table public.monthly_cost_structures enable row level security;
 alter table public.monthly_cost_items enable row level security;
+
+drop policy if exists "Allow public cost category reads" on public.cost_categories;
+drop policy if exists "Allow public monthly cost structure access" on public.monthly_cost_structures;
+drop policy if exists "Allow public monthly cost item access" on public.monthly_cost_items;
+
+create policy "Allow public cost category reads"
+on public.cost_categories
+for select
+to anon
+using (true);
+
+create policy "Allow public monthly cost structure access"
+on public.monthly_cost_structures
+for all
+to anon
+using (true)
+with check (true);
+
+create policy "Allow public monthly cost item access"
+on public.monthly_cost_items
+for all
+to anon
+using (true)
+with check (true);
