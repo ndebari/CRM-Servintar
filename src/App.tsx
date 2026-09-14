@@ -15,7 +15,7 @@ import { isSupabaseConfigured, supabase } from './supabase';
 
 type CostAllocation = {
   perDay: boolean;
-  perMonth: boolean;
+  perKm: boolean;
 };
 
 type CostLine = {
@@ -36,21 +36,20 @@ type CostSnapshot = {
 
 type CostTotals = {
   perDay: number;
-  perMonth: number;
-  total: number;
+  perKm: number;
 };
 
 const initialCostLines: CostLine[] = [
-  { id: 'combustible', name: 'Combustible', sourceValue: 340000, fadeeacIndex: 0, allocation: { perDay: false, perMonth: true } },
-  { id: 'lubricantes', name: 'Lubricantes', sourceValue: 52000, fadeeacIndex: 0, allocation: { perDay: false, perMonth: true } },
-  { id: 'neumaticos', name: 'Neumaticos', sourceValue: 118000, fadeeacIndex: 0, allocation: { perDay: false, perMonth: true } },
-  { id: 'reparaciones', name: 'Reparaciones', sourceValue: 165000, fadeeacIndex: 0, allocation: { perDay: true, perMonth: true } },
-  { id: 'material-rodante', name: 'Material Rodante', sourceValue: 260000, fadeeacIndex: 0, allocation: { perDay: false, perMonth: true } },
-  { id: 'personal', name: 'Personal', sourceValue: 980000, fadeeacIndex: 0, allocation: { perDay: true, perMonth: false } },
-  { id: 'seguros', name: 'Seguros', sourceValue: 126000, fadeeacIndex: 0, allocation: { perDay: false, perMonth: true } },
-  { id: 'patentes-tasas', name: 'Patentes y tasas', sourceValue: 76000, fadeeacIndex: 0, allocation: { perDay: false, perMonth: true } },
-  { id: 'costo-financiero', name: 'Costo Financiero', sourceValue: 94000, fadeeacIndex: 0, allocation: { perDay: true, perMonth: true } },
-  { id: 'gastos-generales', name: 'Gastos Generales', sourceValue: 210000, fadeeacIndex: 0, allocation: { perDay: false, perMonth: true } }
+  { id: 'combustible', name: 'Combustible', sourceValue: 340000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'lubricantes', name: 'Lubricantes', sourceValue: 52000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'neumaticos', name: 'Neumaticos', sourceValue: 118000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'reparaciones', name: 'Reparaciones', sourceValue: 165000, fadeeacIndex: 0, allocation: { perDay: true, perKm: true } },
+  { id: 'material-rodante', name: 'Material Rodante', sourceValue: 260000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'personal', name: 'Personal', sourceValue: 980000, fadeeacIndex: 0, allocation: { perDay: true, perKm: false } },
+  { id: 'seguros', name: 'Seguros', sourceValue: 126000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'patentes-tasas', name: 'Patentes y tasas', sourceValue: 76000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'costo-financiero', name: 'Costo Financiero', sourceValue: 94000, fadeeacIndex: 0, allocation: { perDay: true, perKm: true } },
+  { id: 'gastos-generales', name: 'Gastos Generales', sourceValue: 210000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } }
 ];
 
 const months = [
@@ -77,8 +76,8 @@ const currency = new Intl.NumberFormat('es-AR', {
 function App() {
   const today = new Date();
   const [view, setView] = useState<'cotizador' | 'costos'>('cotizador');
-  const [month, setMonth] = useState(months[today.getMonth()]);
-  const [year, setYear] = useState(String(today.getFullYear()));
+  const [month] = useState(months[today.getMonth()]);
+  const [year] = useState(String(today.getFullYear()));
   const [lookupMonth, setLookupMonth] = useState(months[today.getMonth()]);
   const [lookupYear, setLookupYear] = useState(String(today.getFullYear()));
   const [costLines, setCostLines] = useState<CostLine[]>(initialCostLines);
@@ -87,6 +86,7 @@ function App() {
 
   const totals = useMemo(() => calculateTotals(costLines), [costLines]);
   const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === lookupMonth && snapshot.year === lookupYear);
+  const currentSnapshot = snapshots.find((snapshot) => snapshot.month === month && snapshot.year === year);
 
   const updateLine = (id: string, field: 'sourceValue' | 'fadeeacIndex', value: string) => {
     setCostLines((currentLines) =>
@@ -131,7 +131,7 @@ function App() {
         fadeeacIndex: 0,
         allocation: {
           perDay: false,
-          perMonth: true
+          perKm: true
         }
       }
     ]);
@@ -191,7 +191,7 @@ function App() {
         fadeeac_index: line.fadeeacIndex,
         updated_value: getUpdatedValue(line),
         applies_per_day: line.allocation.perDay,
-        applies_per_km: line.allocation.perMonth
+        applies_per_km: line.allocation.perKm
       }))
     );
 
@@ -233,10 +233,17 @@ function App() {
 
       <section className="workspace">
         {view === 'cotizador' ? (
-          <CotizadorHome totals={totals} onOpenCosts={() => setView('costos')} snapshots={snapshots.length} />
+          <CotizadorHome
+            currentMonthLabel={`${month} ${year}`}
+            isCurrentMonthReady={Boolean(currentSnapshot)}
+            onOpenCosts={() => setView('costos')}
+            snapshots={snapshots.length}
+            totals={totals}
+          />
         ) : (
           <CostStructure
             costLines={costLines}
+            isCurrentMonthReady={Boolean(currentSnapshot)}
             lookupMonth={lookupMonth}
             lookupYear={lookupYear}
             month={month}
@@ -247,9 +254,7 @@ function App() {
             onLineNameChange={updateLineName}
             onLookupMonthChange={setLookupMonth}
             onLookupYearChange={setLookupYear}
-            onMonthChange={setMonth}
             onSave={saveMonthlySnapshot}
-            onYearChange={setYear}
             selectedSnapshot={selectedSnapshot}
             saveStatus={saveStatus}
             snapshots={snapshots}
@@ -262,7 +267,19 @@ function App() {
   );
 }
 
-function CotizadorHome({ totals, onOpenCosts, snapshots }: { totals: CostTotals; onOpenCosts: () => void; snapshots: number }) {
+function CotizadorHome({
+  currentMonthLabel,
+  isCurrentMonthReady,
+  totals,
+  onOpenCosts,
+  snapshots
+}: {
+  currentMonthLabel: string;
+  isCurrentMonthReady: boolean;
+  totals: CostTotals;
+  onOpenCosts: () => void;
+  snapshots: number;
+}) {
   return (
     <>
       <header className="topbar">
@@ -277,9 +294,9 @@ function CotizadorHome({ totals, onOpenCosts, snapshots }: { totals: CostTotals;
       </header>
 
       <section className="metric-grid" aria-label="Resumen de costos">
-        <Metric label="Costo total actualizado" value={currency.format(totals.total)} hint="Segun estructura vigente" />
+        <Metric label="Mes vigente" value={currentMonthLabel} hint={isCurrentMonthReady ? 'Habilitado para cotizar' : 'Pendiente de guardar'} />
         <Metric label="Afectado por dia" value={currency.format(totals.perDay)} hint="Base para tarifas diarias" />
-        <Metric label="Afectado por mes" value={currency.format(totals.perMonth)} hint="Base para costos mensuales" />
+        <Metric label="Afectado por km" value={currency.format(totals.perKm)} hint="Base para tarifas por kilometro" />
         <Metric label="Tablas guardadas" value={String(snapshots)} hint="Historico mensual" />
       </section>
 
@@ -305,6 +322,7 @@ function CotizadorHome({ totals, onOpenCosts, snapshots }: { totals: CostTotals;
 
 type CostStructureProps = {
   costLines: CostLine[];
+  isCurrentMonthReady: boolean;
   lookupMonth: string;
   lookupYear: string;
   month: string;
@@ -315,9 +333,7 @@ type CostStructureProps = {
   onLineNameChange: (id: string, value: string) => void;
   onLookupMonthChange: (month: string) => void;
   onLookupYearChange: (year: string) => void;
-  onMonthChange: (month: string) => void;
   onSave: () => void;
-  onYearChange: (year: string) => void;
   selectedSnapshot?: CostSnapshot;
   saveStatus: string;
   snapshots: CostSnapshot[];
@@ -327,6 +343,7 @@ type CostStructureProps = {
 
 function CostStructure({
   costLines,
+  isCurrentMonthReady,
   lookupMonth,
   lookupYear,
   month,
@@ -337,9 +354,7 @@ function CostStructure({
   onLineNameChange,
   onLookupMonthChange,
   onLookupYearChange,
-  onMonthChange,
   onSave,
-  onYearChange,
   selectedSnapshot,
   saveStatus,
   snapshots,
@@ -368,9 +383,9 @@ function CostStructure({
       </header>
 
       <section className="metric-grid" aria-label="Totales de estructura">
-        <Metric label="Total actualizado" value={currency.format(totals.total)} hint="Con indice FADEEAC" />
+        <Metric label="Mes vigente" value={`${month} ${year}`} hint={isCurrentMonthReady ? 'Habilitado para cotizar' : 'Pendiente de guardar'} />
         <Metric label="Costo por dia" value={currency.format(totals.perDay)} hint="Items marcados por dia" />
-        <Metric label="Costo por mes" value={currency.format(totals.perMonth)} hint="Items marcados por mes" />
+        <Metric label="Costo por km" value={currency.format(totals.perKm)} hint="Items marcados por kilometro" />
         <Metric label="Versiones historicas" value={String(snapshots.length)} hint="Copias mensuales guardadas" />
       </section>
 
@@ -385,19 +400,9 @@ function CostStructure({
               <Plus size={17} />
               Agregar linea
             </button>
-            <div className="period-controls">
-              <label>
-                Mes
-                <select value={month} onChange={(event) => onMonthChange(event.target.value)}>
-                  {months.map((item) => (
-                    <option key={item}>{item}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Anio
-                <input value={year} onChange={(event) => onYearChange(event.target.value)} />
-              </label>
+            <div className="current-period">
+              <span>Mes vigente</span>
+              <strong>{month} {year}</strong>
             </div>
           </div>
         </div>
@@ -405,19 +410,33 @@ function CostStructure({
         <div className="cost-table">
           <div className="cost-row cost-head">
             <span>Rubro</span>
+            <span>Costo origen</span>
+            <span>Ajuste FADEEAC %</span>
             <span>x dia</span>
             <span>Costo diario</span>
-            <span>x mes</span>
-            <span>Costo mes</span>
+            <span>x km</span>
+            <span>Costo km</span>
           </div>
           {costLines.map((line) => {
             const updatedValue = getUpdatedValue(line);
             const dailyValue = line.allocation.perDay ? updatedValue : 0;
-            const monthlyValue = line.allocation.perMonth ? updatedValue : 0;
+            const kmValue = line.allocation.perKm ? updatedValue : 0;
 
             return (
               <div className="cost-row" key={line.id}>
                 <input className="rubric-input" value={line.name} onChange={(event) => onLineNameChange(line.id, event.target.value)} />
+                <input
+                  min="0"
+                  type="number"
+                  value={line.sourceValue}
+                  onChange={(event) => onLineChange(line.id, 'sourceValue', event.target.value)}
+                />
+                <input
+                  step="0.01"
+                  type="number"
+                  value={line.fadeeacIndex}
+                  onChange={(event) => onLineChange(line.id, 'fadeeacIndex', event.target.value)}
+                />
                 <label className="check-cell">
                   <input
                     checked={line.allocation.perDay}
@@ -430,24 +449,17 @@ function CostStructure({
                 </span>
                 <label className="check-cell">
                   <input
-                    checked={line.allocation.perMonth}
+                    checked={line.allocation.perKm}
                     type="checkbox"
-                    onChange={(event) => onAllocationChange(line.id, 'perMonth', event.target.checked)}
+                    onChange={(event) => onAllocationChange(line.id, 'perKm', event.target.checked)}
                   />
                 </label>
-                <span className={`allocation-value ${line.allocation.perMonth ? '' : 'inactive'}`}>
-                  {line.allocation.perMonth ? currency.format(monthlyValue) : 'No aplica'}
+                <span className={`allocation-value ${line.allocation.perKm ? '' : 'inactive'}`}>
+                  {line.allocation.perKm ? currency.format(kmValue) : 'No aplica'}
                 </span>
               </div>
             );
           })}
-          <div className="cost-row totals-row">
-            <strong>Totales</strong>
-            <span />
-            <b>{currency.format(totals.perDay)}</b>
-            <span />
-            <b>{currency.format(totals.perMonth)}</b>
-          </div>
         </div>
       </section>
 
@@ -487,16 +499,12 @@ function CostStructure({
               </div>
               <dl>
                 <div>
-                  <dt>Total</dt>
-                  <dd>{currency.format(snapshotTotals.total)}</dd>
-                </div>
-                <div>
                   <dt>Dia</dt>
                   <dd>{currency.format(snapshotTotals.perDay)}</dd>
                 </div>
                 <div>
-                  <dt>Mes</dt>
-                  <dd>{currency.format(snapshotTotals.perMonth)}</dd>
+                  <dt>Km</dt>
+                  <dd>{currency.format(snapshotTotals.perKm)}</dd>
                 </div>
               </dl>
             </div>
@@ -515,7 +523,7 @@ function CostStructure({
           </div>
           <p className="muted-copy">
             Al guardar, se conserva una copia de todos los rubros, sus valores de origen, indices FADEEAC, valores
-            actualizados y afectacion por dia o mes.
+            actualizados y afectacion por dia o kilometro. Desde ese momento el mes vigente queda habilitado para cotizar.
           </p>
           <p className="save-status">{saveStatus}</p>
         </div>
@@ -534,12 +542,11 @@ function calculateTotals(lines: CostLine[]): CostTotals {
       const updatedValue = getUpdatedValue(line);
 
       return {
-        total: totals.total + updatedValue,
         perDay: totals.perDay + (line.allocation.perDay ? updatedValue : 0),
-        perMonth: totals.perMonth + (line.allocation.perMonth ? updatedValue : 0)
+        perKm: totals.perKm + (line.allocation.perKm ? updatedValue : 0)
       };
     },
-    { perDay: 0, perMonth: 0, total: 0 }
+    { perDay: 0, perKm: 0 }
   );
 }
 
