@@ -375,8 +375,10 @@ function CostStructure({
             <span>Dato de origen</span>
             <span>FADEEAC %</span>
             <span>Actualizado</span>
-            <span>Por dia</span>
-            <span>Por km</span>
+            <span>Aplica dia</span>
+            <span>Costo dia</span>
+            <span>Aplica km</span>
+            <span>Costo km</span>
           </div>
           {costLines.map((line) => {
             const updatedValue = getUpdatedValue(line);
@@ -403,6 +405,9 @@ function CostStructure({
                     onChange={(event) => onAllocationChange(line.id, 'perDay', event.target.checked)}
                   />
                 </label>
+                <span className={`allocation-value ${line.allocation.perDay ? '' : 'inactive'}`}>
+                  {line.allocation.perDay ? currency.format(updatedValue) : 'No aplica'}
+                </span>
                 <label className="check-cell">
                   <input
                     checked={line.allocation.perKm}
@@ -410,6 +415,9 @@ function CostStructure({
                     onChange={(event) => onAllocationChange(line.id, 'perKm', event.target.checked)}
                   />
                 </label>
+                <span className={`allocation-value ${line.allocation.perKm ? '' : 'inactive'}`}>
+                  {line.allocation.perKm ? currency.format(updatedValue) : 'No aplica'}
+                </span>
               </div>
             );
           })}
