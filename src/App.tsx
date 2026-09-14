@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
   BadgeDollarSign,
@@ -10,7 +10,7 @@ import {
   Smartphone,
   Truck
 } from 'lucide-react';
-import { isSupabaseConfigured } from './supabase';
+import { isSupabaseConfigured, supabase } from './supabase';
 
 type CostAllocation = {
   perDay: boolean;
@@ -82,9 +82,50 @@ function App() {
   const [lookupYear, setLookupYear] = useState(String(today.getFullYear()));
   const [costLines, setCostLines] = useState<CostLine[]>(initialCostLines);
   const [snapshots, setSnapshots] = useState<CostSnapshot[]>([]);
+  const [saveStatus, setSaveStatus] = useState('Sin guardar en esta sesion');
 
   const totals = useMemo(() => calculateTotals(costLines), [costLines]);
   const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === lookupMonth && snapshot.year === lookupYear);
+
+  useEffect(() => {
+    const loadSnapshots = async () => {
+      if (!supabase) {
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('monthly_cost_structures')
+        .select(
+          'id, month, year, saved_at, monthly_cost_items(category_id, source_value, fadeeac_index, applies_per_day, applies_per_km, cost_categories(name))'
+        )
+        .order('saved_at', { ascending: false });
+
+      if (error || !data) {
+        return;
+      }
+
+      setSnapshots(
+        data.map((structure) => ({
+          id: structure.id,
+          month: months[(structure.month as number) - 1],
+          year: String(structure.year),
+          savedAt: structure.saved_at,
+          lines: (structure.monthly_cost_items ?? []).map((item) => ({
+            id: item.category_id,
+            name: item.cost_categories?.name ?? item.category_id,
+            sourceValue: Number(item.source_value),
+            fadeeacIndex: Number(item.fadeeac_index),
+            allocation: {
+              perDay: Boolean(item.applies_per_day),
+              perKm: Boolean(item.applies_per_km)
+            }
+          }))
+        }))
+      );
+    };
+
+    void loadSnapshots();
+  }, []);
 
   const updateLine = (id: string, field: 'sourceValue' | 'fadeeacIndex', value: string) => {
     setCostLines((currentLines) =>
@@ -115,7 +156,7 @@ function App() {
     );
   };
 
-  const saveMonthlySnapshot = () => {
+  const saveMonthlySnapshot = async () => {
     const snapshot: CostSnapshot = {
       id: `${year}-${month}-${Date.now()}`,
       month,
@@ -130,6 +171,50 @@ function App() {
     ]);
     setLookupMonth(month);
     setLookupYear(year);
+
+    if (!supabase) {
+      setSaveStatus('Guardado local. Supabase no esta configurado.');
+      return;
+    }
+
+    const { data: structure, error: structureError } = await supabase
+      .from('monthly_cost_structures')
+      .upsert(
+        {
+          month: months.indexOf(month) + 1,
+          year: Number(year),
+          saved_at: new Date().toISOString()
+        },
+        { onConflict: 'month,year' }
+      )
+      .select('id')
+      .single();
+
+    if (structureError || !structure) {
+      setSaveStatus('No se pudo guardar en Supabase. Revisar tablas y politicas.');
+      return;
+    }
+
+    const { error: deleteError } = await supabase.from('monthly_cost_items').delete().eq('structure_id', structure.id);
+
+    if (deleteError) {
+      setSaveStatus('No se pudo reemplazar el detalle mensual en Supabase.');
+      return;
+    }
+
+    const { error: itemError } = await supabase.from('monthly_cost_items').insert(
+      costLines.map((line) => ({
+        structure_id: structure.id,
+        category_id: line.id,
+        source_value: line.sourceValue,
+        fadeeac_index: line.fadeeacIndex,
+        updated_value: getUpdatedValue(line),
+        applies_per_day: line.allocation.perDay,
+        applies_per_km: line.allocation.perKm
+      }))
+    );
+
+    setSaveStatus(itemError ? 'No se pudieron guardar los items en Supabase.' : 'Guardado en Supabase correctamente.');
   };
 
   return (
@@ -183,6 +268,7 @@ function App() {
             onSave={saveMonthlySnapshot}
             onYearChange={setYear}
             selectedSnapshot={selectedSnapshot}
+            saveStatus={saveStatus}
             snapshots={snapshots}
             totals={totals}
             year={year}
@@ -248,6 +334,7 @@ type CostStructureProps = {
   onSave: () => void;
   onYearChange: (year: string) => void;
   selectedSnapshot?: CostSnapshot;
+  saveStatus: string;
   snapshots: CostSnapshot[];
   totals: CostTotals;
   year: string;
@@ -267,6 +354,7 @@ function CostStructure({
   onSave,
   onYearChange,
   selectedSnapshot,
+  saveStatus,
   snapshots,
   totals,
   year
@@ -432,8 +520,9 @@ function CostStructure({
           </div>
           <p className="muted-copy">
             Al guardar, se conserva una copia de todos los rubros, sus valores de origen, indices FADEEAC, valores
-            actualizados y afectacion por dia o kilometro. En el siguiente paso esto se persistira en Supabase.
+            actualizados y afectacion por dia o kilometro.
           </p>
+          <p className="save-status">{saveStatus}</p>
         </div>
       </section>
     </>
