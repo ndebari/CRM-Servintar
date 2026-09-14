@@ -112,7 +112,7 @@ function App() {
           savedAt: structure.saved_at,
           lines: (structure.monthly_cost_items ?? []).map((item) => ({
             id: item.category_id,
-            name: item.cost_categories?.name ?? item.category_id,
+            name: getCategoryName(item.cost_categories, item.category_id),
             sourceValue: Number(item.source_value),
             fadeeacIndex: Number(item.fadeeac_index),
             allocation: {
@@ -531,6 +531,20 @@ function CostStructure({
 
 function getUpdatedValue(line: CostLine) {
   return line.sourceValue * (1 + line.fadeeacIndex / 100);
+}
+
+function getCategoryName(category: unknown, fallback: string) {
+  if (Array.isArray(category)) {
+    const firstCategory = category[0] as { name?: unknown } | undefined;
+    return typeof firstCategory?.name === 'string' ? firstCategory.name : fallback;
+  }
+
+  if (category && typeof category === 'object' && 'name' in category) {
+    const name = (category as { name?: unknown }).name;
+    return typeof name === 'string' ? name : fallback;
+  }
+
+  return fallback;
 }
 
 function calculateTotals(lines: CostLine[]): CostTotals {
