@@ -263,7 +263,6 @@ function App() {
             isCurrentMonthReady={Boolean(currentSnapshot)}
             onOpenCosts={() => setView('costos')}
             previousComparison={previousComparison}
-            snapshots={snapshots.length}
             totals={totals}
           />
         ) : (
@@ -286,7 +285,6 @@ function App() {
             previousComparison={previousComparison}
             selectedSnapshot={selectedSnapshot}
             saveStatus={saveStatus}
-            snapshots={snapshots}
             totals={totals}
             year={year}
           />
@@ -301,15 +299,13 @@ function CotizadorHome({
   isCurrentMonthReady,
   totals,
   onOpenCosts,
-  previousComparison,
-  snapshots
+  previousComparison
 }: {
   currentMonthLabel: string;
   isCurrentMonthReady: boolean;
   totals: CostTotals;
   onOpenCosts: () => void;
   previousComparison: CostComparison;
-  snapshots: number;
 }) {
   return (
     <>
@@ -327,18 +323,17 @@ function CotizadorHome({
       <section className="metric-grid" aria-label="Resumen de costos">
         <Metric label="Mes vigente" value={currentMonthLabel} hint={isCurrentMonthReady ? 'Habilitado para cotizar' : 'Pendiente de guardar'} />
         <Metric label="Afectado por dia" value={currency.format(totals.perDay)} hint="Base para tarifas diarias" />
-        <Metric label="Afectado por km" value={currency.format(totals.perKm)} hint="Base para tarifas por kilometro" />
         <Metric
           label="Incremento dia"
           value={formatPercentChange(previousComparison.perDayPercent)}
           hint={`Contra ${previousComparison.previousLabel}`}
         />
+        <Metric label="Afectado por km" value={currency.format(totals.perKm)} hint="Base para tarifas por kilometro" />
         <Metric
           label="Incremento km"
           value={formatPercentChange(previousComparison.perKmPercent)}
           hint={`Contra ${previousComparison.previousLabel}`}
         />
-        <Metric label="Tablas guardadas" value={String(snapshots)} hint="Historico mensual" />
       </section>
 
       <section className="panel quote-panel">
@@ -384,7 +379,6 @@ type CostStructureProps = {
   previousComparison: CostComparison;
   selectedSnapshot?: CostSnapshot;
   saveStatus: string;
-  snapshots: CostSnapshot[];
   totals: CostTotals;
   year: string;
 };
@@ -408,7 +402,6 @@ function CostStructure({
   previousComparison,
   selectedSnapshot,
   saveStatus,
-  snapshots,
   totals,
   year
 }: CostStructureProps) {
@@ -437,18 +430,17 @@ function CostStructure({
       <section className="metric-grid" aria-label="Totales de estructura">
         <Metric label="Mes vigente" value={`${month} ${year}`} hint={isCurrentMonthReady ? 'Habilitado para cotizar' : 'Pendiente de guardar'} />
         <Metric label="Costo por dia" value={currency.format(totals.perDay)} hint="Items marcados por dia" />
-        <Metric label="Costo por km" value={currency.format(totals.perKm)} hint="Items marcados por kilometro" />
         <Metric
           label="Incremento dia"
           value={formatPercentChange(previousComparison.perDayPercent)}
           hint={`Contra ${previousComparison.previousLabel}`}
         />
+        <Metric label="Costo por km" value={currency.format(totals.perKm)} hint="Items marcados por kilometro" />
         <Metric
           label="Incremento km"
           value={formatPercentChange(previousComparison.perKmPercent)}
           hint={`Contra ${previousComparison.previousLabel}`}
         />
-        <Metric label="Versiones historicas" value={String(snapshots.length)} hint="Copias mensuales guardadas" />
       </section>
 
       <section className="panel costs-panel">
