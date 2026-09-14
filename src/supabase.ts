@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const fallbackSupabaseUrl = 'https://sapjruzzolqfaigwsglj.supabase.co';
+const fallbackSupabaseAnonKey = 'sb_publishable_8Cxx0eIjXOvU7KRxig6anQ_XL4vKXXs';
+
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? fallbackSupabaseUrl;
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? fallbackSupabaseAnonKey;
 
 function isValidHttpUrl(value: string | undefined) {
   if (!value) {
