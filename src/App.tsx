@@ -42,6 +42,12 @@ type CostTotals = {
   perKm: number;
 };
 
+type CostComparison = {
+  previousLabel: string;
+  perDayPercent?: number;
+  perKmPercent?: number;
+};
+
 const initialCostLines: CostLine[] = [
   { id: 'combustible', name: 'Combustible', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 340000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
   { id: 'lubricantes', name: 'Lubricantes', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 52000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
@@ -91,6 +97,14 @@ function App() {
   const totals = useMemo(() => calculateTotals(costLines), [costLines]);
   const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === lookupMonth && snapshot.year === lookupYear);
   const currentSnapshot = snapshots.find((snapshot) => snapshot.month === month && snapshot.year === year);
+  const previousComparison = useMemo(() => {
+    const previousPeriod = getPreviousPeriod(month, year);
+    const previousSnapshot = snapshots.find(
+      (snapshot) => snapshot.month === previousPeriod.month && snapshot.year === previousPeriod.year
+    );
+
+    return calculateComparison(totals, previousPeriod, previousSnapshot);
+  }, [month, snapshots, totals, year]);
 
   const updateLine = (
     id: string,
@@ -248,6 +262,7 @@ function App() {
             currentMonthLabel={`${month} ${year}`}
             isCurrentMonthReady={Boolean(currentSnapshot)}
             onOpenCosts={() => setView('costos')}
+            previousComparison={previousComparison}
             snapshots={snapshots.length}
             totals={totals}
           />
@@ -268,6 +283,7 @@ function App() {
             onLookupMonthChange={setLookupMonth}
             onLookupYearChange={setLookupYear}
             onSave={saveMonthlySnapshot}
+            previousComparison={previousComparison}
             selectedSnapshot={selectedSnapshot}
             saveStatus={saveStatus}
             snapshots={snapshots}
@@ -285,12 +301,14 @@ function CotizadorHome({
   isCurrentMonthReady,
   totals,
   onOpenCosts,
+  previousComparison,
   snapshots
 }: {
   currentMonthLabel: string;
   isCurrentMonthReady: boolean;
   totals: CostTotals;
   onOpenCosts: () => void;
+  previousComparison: CostComparison;
   snapshots: number;
 }) {
   return (
@@ -310,6 +328,16 @@ function CotizadorHome({
         <Metric label="Mes vigente" value={currentMonthLabel} hint={isCurrentMonthReady ? 'Habilitado para cotizar' : 'Pendiente de guardar'} />
         <Metric label="Afectado por dia" value={currency.format(totals.perDay)} hint="Base para tarifas diarias" />
         <Metric label="Afectado por km" value={currency.format(totals.perKm)} hint="Base para tarifas por kilometro" />
+        <Metric
+          label="Incremento dia"
+          value={formatPercentChange(previousComparison.perDayPercent)}
+          hint={`Contra ${previousComparison.previousLabel}`}
+        />
+        <Metric
+          label="Incremento km"
+          value={formatPercentChange(previousComparison.perKmPercent)}
+          hint={`Contra ${previousComparison.previousLabel}`}
+        />
         <Metric label="Tablas guardadas" value={String(snapshots)} hint="Historico mensual" />
       </section>
 
@@ -353,6 +381,7 @@ type CostStructureProps = {
   onLookupMonthChange: (month: string) => void;
   onLookupYearChange: (year: string) => void;
   onSave: () => void;
+  previousComparison: CostComparison;
   selectedSnapshot?: CostSnapshot;
   saveStatus: string;
   snapshots: CostSnapshot[];
@@ -376,6 +405,7 @@ function CostStructure({
   onLookupMonthChange,
   onLookupYearChange,
   onSave,
+  previousComparison,
   selectedSnapshot,
   saveStatus,
   snapshots,
@@ -408,6 +438,16 @@ function CostStructure({
         <Metric label="Mes vigente" value={`${month} ${year}`} hint={isCurrentMonthReady ? 'Habilitado para cotizar' : 'Pendiente de guardar'} />
         <Metric label="Costo por dia" value={currency.format(totals.perDay)} hint="Items marcados por dia" />
         <Metric label="Costo por km" value={currency.format(totals.perKm)} hint="Items marcados por kilometro" />
+        <Metric
+          label="Incremento dia"
+          value={formatPercentChange(previousComparison.perDayPercent)}
+          hint={`Contra ${previousComparison.previousLabel}`}
+        />
+        <Metric
+          label="Incremento km"
+          value={formatPercentChange(previousComparison.perKmPercent)}
+          hint={`Contra ${previousComparison.previousLabel}`}
+        />
         <Metric label="Versiones historicas" value={String(snapshots.length)} hint="Copias mensuales guardadas" />
       </section>
 
@@ -429,10 +469,6 @@ function CostStructure({
                 Agregar linea
               </button>
             )}
-            <div className="current-period">
-              <span>Mes vigente</span>
-              <strong>{month} {year}</strong>
-            </div>
           </div>
         </div>
 
@@ -616,6 +652,52 @@ function calculateTotals(lines: CostLine[]): CostTotals {
     },
     { perDay: 0, perKm: 0 }
   );
+}
+
+function getPreviousPeriod(month: string, year: string) {
+  const monthIndex = months.indexOf(month);
+  const previousDate = new Date(Number(year), monthIndex - 1, 1);
+
+  return {
+    month: months[previousDate.getMonth()],
+    year: String(previousDate.getFullYear())
+  };
+}
+
+function calculateComparison(
+  currentTotals: CostTotals,
+  previousPeriod: { month: string; year: string },
+  previousSnapshot?: CostSnapshot
+): CostComparison {
+  if (!previousSnapshot) {
+    return {
+      previousLabel: `${previousPeriod.month} ${previousPeriod.year}`
+    };
+  }
+
+  const previousTotals = calculateTotals(previousSnapshot.lines);
+
+  return {
+    previousLabel: `${previousSnapshot.month} ${previousSnapshot.year}`,
+    perDayPercent: getPercentChange(currentTotals.perDay, previousTotals.perDay),
+    perKmPercent: getPercentChange(currentTotals.perKm, previousTotals.perKm)
+  };
+}
+
+function getPercentChange(currentValue: number, previousValue: number) {
+  if (previousValue === 0) {
+    return undefined;
+  }
+
+  return ((currentValue - previousValue) / previousValue) * 100;
+}
+
+function formatPercentChange(value?: number) {
+  if (value === undefined) {
+    return 'Sin dato';
+  }
+
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
 }
 
 function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
