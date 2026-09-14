@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
   BadgeDollarSign,
@@ -46,6 +46,34 @@ type CostComparison = {
   previousLabel: string;
   perDayPercent?: number;
   perKmPercent?: number;
+};
+
+type CostStructureRow = {
+  id: string;
+  month: number;
+  year: number;
+  saved_at: string;
+};
+
+type CostItemRow = {
+  structure_id: string;
+  category_id: string;
+  day_source_value: number | string | null;
+  day_fadeeac_index: number | string | null;
+  km_source_value: number | string | null;
+  km_fadeeac_index: number | string | null;
+  source_value?: number | string | null;
+  fadeeac_index?: number | string | null;
+  applies_per_day: boolean;
+  applies_per_km: boolean;
+  sort_order: number | null;
+  cost_categories?: {
+    name: string;
+    sort_order: number | null;
+  } | {
+    name: string;
+    sort_order: number | null;
+  }[] | null;
 };
 
 const initialCostLines: CostLine[] = [
@@ -105,6 +133,68 @@ function App() {
 
     return calculateComparison(totals, previousPeriod, previousSnapshot);
   }, [month, snapshots, totals, year]);
+
+  useEffect(() => {
+    void loadMonthlyCostStructures();
+  }, []);
+
+  const loadMonthlyCostStructures = async () => {
+    if (!supabase) {
+      return;
+    }
+
+    const { data: structures, error: structuresError } = await supabase
+      .from('monthly_cost_structures')
+      .select('id, month, year, saved_at')
+      .order('year', { ascending: false })
+      .order('month', { ascending: false });
+
+    if (structuresError) {
+      setSaveStatus('Supabase conectado, pero no se pudieron leer las tablas de costos.');
+      return;
+    }
+
+    const structureRows = (structures ?? []) as CostStructureRow[];
+
+    if (structureRows.length === 0) {
+      setSaveStatus('Supabase conectado. Todavia no hay meses guardados.');
+      return;
+    }
+
+    const { data: items, error: itemsError } = await supabase
+      .from('monthly_cost_items')
+      .select(
+        'structure_id, category_id, day_source_value, day_fadeeac_index, km_source_value, km_fadeeac_index, source_value, fadeeac_index, applies_per_day, applies_per_km, sort_order, cost_categories(name, sort_order)'
+      )
+      .in(
+        'structure_id',
+        structureRows.map((structure) => structure.id)
+      );
+
+    if (itemsError) {
+      setSaveStatus('Supabase conectado, pero falta actualizar el esquema normalizado de costos.');
+      return;
+    }
+
+    const itemRows = (items ?? []) as unknown as CostItemRow[];
+    const loadedSnapshots = structureRows.map((structure) =>
+      mapSnapshotFromRows(
+        structure,
+        itemRows.filter((item) => item.structure_id === structure.id)
+      )
+    );
+
+    const loadedCurrentSnapshot = loadedSnapshots.find((snapshot) => snapshot.month === month && snapshot.year === year);
+    setSnapshots(loadedSnapshots);
+
+    if (loadedCurrentSnapshot) {
+      setCostLines(loadedCurrentSnapshot.lines);
+      setIsCostEditing(false);
+      setSaveStatus('Datos cargados desde Supabase.');
+    } else {
+      setSaveStatus('Supabase conectado. Mes vigente pendiente de guardar.');
+    }
+  };
 
   const updateLine = (
     id: string,
@@ -183,6 +273,20 @@ function App() {
       return;
     }
 
+    const { error: categoryError } = await supabase.from('cost_categories').upsert(
+      costLines.map((line, index) => ({
+        id: line.id,
+        name: line.name,
+        sort_order: (index + 1) * 10
+      })),
+      { onConflict: 'id' }
+    );
+
+    if (categoryError) {
+      setSaveStatus('No se pudieron actualizar los rubros en Supabase.');
+      return;
+    }
+
     const { data: structure, error: structureError } = await supabase
       .from('monthly_cost_structures')
       .upsert(
@@ -209,14 +313,21 @@ function App() {
     }
 
     const { error: itemError } = await supabase.from('monthly_cost_items').insert(
-      costLines.map((line) => ({
+      costLines.map((line, index) => ({
         structure_id: structure.id,
         category_id: line.id,
+        day_source_value: line.daySourceValue,
+        day_fadeeac_index: line.dayFadeeacIndex,
+        day_updated_value: getUpdatedValue(line, 'day'),
+        km_source_value: line.kmSourceValue,
+        km_fadeeac_index: line.kmFadeeacIndex,
+        km_updated_value: getUpdatedValue(line, 'km'),
         source_value: line.kmSourceValue || line.daySourceValue,
         fadeeac_index: line.kmFadeeacIndex || line.dayFadeeacIndex,
         updated_value: getUpdatedValue(line, 'km') || getUpdatedValue(line, 'day'),
         applies_per_day: line.allocation.perDay,
-        applies_per_km: line.allocation.perKm
+        applies_per_km: line.allocation.perKm,
+        sort_order: (index + 1) * 10
       }))
     );
 
@@ -674,6 +785,43 @@ function calculateComparison(
     perDayPercent: getPercentChange(currentTotals.perDay, previousTotals.perDay),
     perKmPercent: getPercentChange(currentTotals.perKm, previousTotals.perKm)
   };
+}
+
+function mapSnapshotFromRows(structure: CostStructureRow, items: CostItemRow[]): CostSnapshot {
+  const lines = items
+    .map((item) => {
+      const legacySourceValue = toNumber(item.source_value);
+      const legacyFadeeacIndex = toNumber(item.fadeeac_index);
+      const category = Array.isArray(item.cost_categories) ? item.cost_categories[0] : item.cost_categories;
+
+      return {
+        id: item.category_id,
+        name: category?.name ?? item.category_id,
+        daySourceValue: item.day_source_value === null ? (item.applies_per_day ? legacySourceValue : 0) : toNumber(item.day_source_value),
+        dayFadeeacIndex: item.day_fadeeac_index === null ? (item.applies_per_day ? legacyFadeeacIndex : 0) : toNumber(item.day_fadeeac_index),
+        kmSourceValue: item.km_source_value === null ? (item.applies_per_km ? legacySourceValue : 0) : toNumber(item.km_source_value),
+        kmFadeeacIndex: item.km_fadeeac_index === null ? (item.applies_per_km ? legacyFadeeacIndex : 0) : toNumber(item.km_fadeeac_index),
+        allocation: {
+          perDay: item.applies_per_day,
+          perKm: item.applies_per_km
+        },
+        sortOrder: item.sort_order ?? category?.sort_order ?? 0
+      };
+    })
+    .sort((first, second) => first.sortOrder - second.sortOrder)
+    .map(({ sortOrder: _sortOrder, ...line }) => line);
+
+  return {
+    id: structure.id,
+    month: months[structure.month - 1],
+    year: String(structure.year),
+    savedAt: structure.saved_at,
+    lines
+  };
+}
+
+function toNumber(value: number | string | null | undefined) {
+  return Number(value ?? 0);
 }
 
 function getPercentChange(currentValue: number, previousValue: number) {
