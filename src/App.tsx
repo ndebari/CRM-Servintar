@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Archive,
   BadgeDollarSign,
@@ -86,46 +86,6 @@ function App() {
 
   const totals = useMemo(() => calculateTotals(costLines), [costLines]);
   const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === lookupMonth && snapshot.year === lookupYear);
-
-  useEffect(() => {
-    const loadSnapshots = async () => {
-      if (!supabase) {
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('monthly_cost_structures')
-        .select(
-          'id, month, year, saved_at, monthly_cost_items(category_id, source_value, fadeeac_index, applies_per_day, applies_per_km, cost_categories(name))'
-        )
-        .order('saved_at', { ascending: false });
-
-      if (error || !data) {
-        return;
-      }
-
-      setSnapshots(
-        data.map((structure) => ({
-          id: structure.id,
-          month: months[(structure.month as number) - 1],
-          year: String(structure.year),
-          savedAt: structure.saved_at,
-          lines: (structure.monthly_cost_items ?? []).map((item) => ({
-            id: item.category_id,
-            name: getCategoryName(item.cost_categories, item.category_id),
-            sourceValue: Number(item.source_value),
-            fadeeacIndex: Number(item.fadeeac_index),
-            allocation: {
-              perDay: Boolean(item.applies_per_day),
-              perKm: Boolean(item.applies_per_km)
-            }
-          }))
-        }))
-      );
-    };
-
-    void loadSnapshots();
-  }, []);
 
   const updateLine = (id: string, field: 'sourceValue' | 'fadeeacIndex', value: string) => {
     setCostLines((currentLines) =>
@@ -531,20 +491,6 @@ function CostStructure({
 
 function getUpdatedValue(line: CostLine) {
   return line.sourceValue * (1 + line.fadeeacIndex / 100);
-}
-
-function getCategoryName(category: unknown, fallback: string) {
-  if (Array.isArray(category)) {
-    const firstCategory = category[0] as { name?: unknown } | undefined;
-    return typeof firstCategory?.name === 'string' ? firstCategory.name : fallback;
-  }
-
-  if (category && typeof category === 'object' && 'name' in category) {
-    const name = (category as { name?: unknown }).name;
-    return typeof name === 'string' ? name : fallback;
-  }
-
-  return fallback;
 }
 
 function calculateTotals(lines: CostLine[]): CostTotals {
