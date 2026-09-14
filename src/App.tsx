@@ -1,21 +1,71 @@
 import { useMemo, useState } from 'react';
 import {
+  Archive,
   BadgeDollarSign,
-  BriefcaseBusiness,
-  CalendarDays,
   CheckCircle2,
   CircleDollarSign,
-  Download,
-  LayoutDashboard,
-  Plus,
-  Search,
-  Send,
+  FileSpreadsheet,
+  History,
+  Save,
   Smartphone,
-  Users
+  Truck
 } from 'lucide-react';
-import { customers, deals, quote as initialQuote } from './data';
 import { isSupabaseConfigured } from './supabase';
-import type { DealStage, QuoteItem } from './types';
+
+type CostAllocation = {
+  perDay: boolean;
+  perKm: boolean;
+};
+
+type CostLine = {
+  id: string;
+  name: string;
+  sourceValue: number;
+  fadeeacIndex: number;
+  allocation: CostAllocation;
+};
+
+type CostSnapshot = {
+  id: string;
+  month: string;
+  year: string;
+  savedAt: string;
+  lines: CostLine[];
+};
+
+type CostTotals = {
+  perDay: number;
+  perKm: number;
+  total: number;
+};
+
+const initialCostLines: CostLine[] = [
+  { id: 'combustible', name: 'Combustible', sourceValue: 340000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'lubricantes', name: 'Lubricantes', sourceValue: 52000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'neumaticos', name: 'Neumaticos', sourceValue: 118000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'reparaciones', name: 'Reparaciones', sourceValue: 165000, fadeeacIndex: 0, allocation: { perDay: true, perKm: true } },
+  { id: 'material-rodante', name: 'Material Rodante', sourceValue: 260000, fadeeacIndex: 0, allocation: { perDay: true, perKm: false } },
+  { id: 'personal', name: 'Personal', sourceValue: 980000, fadeeacIndex: 0, allocation: { perDay: true, perKm: false } },
+  { id: 'seguros', name: 'Seguros', sourceValue: 126000, fadeeacIndex: 0, allocation: { perDay: true, perKm: false } },
+  { id: 'patentes-tasas', name: 'Patentes y tasas', sourceValue: 76000, fadeeacIndex: 0, allocation: { perDay: true, perKm: false } },
+  { id: 'costo-financiero', name: 'Costo Financiero', sourceValue: 94000, fadeeacIndex: 0, allocation: { perDay: true, perKm: true } },
+  { id: 'gastos-generales', name: 'Gastos Generales', sourceValue: 210000, fadeeacIndex: 0, allocation: { perDay: true, perKm: false } }
+];
+
+const months = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre'
+];
 
 const currency = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -23,59 +73,63 @@ const currency = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 0
 });
 
-const stages: Array<{ id: DealStage; label: string }> = [
-  { id: 'nuevo', label: 'Nuevo' },
-  { id: 'contactado', label: 'Contactado' },
-  { id: 'cotizando', label: 'Cotizando' },
-  { id: 'ganado', label: 'Ganado' }
-];
-
 function App() {
-  const [selectedCustomerId, setSelectedCustomerId] = useState(initialQuote.customerId);
-  const [items, setItems] = useState<QuoteItem[]>(initialQuote.items);
-  const [discountPercent, setDiscountPercent] = useState(initialQuote.discountPercent);
-  const [taxPercent, setTaxPercent] = useState(initialQuote.taxPercent);
+  const today = new Date();
+  const [view, setView] = useState<'cotizador' | 'costos'>('cotizador');
+  const [month, setMonth] = useState(months[today.getMonth()]);
+  const [year, setYear] = useState(String(today.getFullYear()));
+  const [lookupMonth, setLookupMonth] = useState(months[today.getMonth()]);
+  const [lookupYear, setLookupYear] = useState(String(today.getFullYear()));
+  const [costLines, setCostLines] = useState<CostLine[]>(initialCostLines);
+  const [snapshots, setSnapshots] = useState<CostSnapshot[]>([]);
 
-  const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId) ?? customers[0];
+  const totals = useMemo(() => calculateTotals(costLines), [costLines]);
+  const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === lookupMonth && snapshot.year === lookupYear);
 
-  const totals = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const discount = subtotal * (discountPercent / 100);
-    const taxable = subtotal - discount;
-    const taxes = taxable * (taxPercent / 100);
-    return {
-      subtotal,
-      discount,
-      taxes,
-      total: taxable + taxes
-    };
-  }, [discountPercent, items, taxPercent]);
-
-  const updateItem = (id: string, field: keyof QuoteItem, value: string) => {
-    setItems((currentItems) =>
-      currentItems.map((item) => {
-        if (item.id !== id) {
-          return item;
-        }
-
-        return {
-          ...item,
-          [field]: field === 'description' ? value : Number(value)
-        };
-      })
+  const updateLine = (id: string, field: 'sourceValue' | 'fadeeacIndex', value: string) => {
+    setCostLines((currentLines) =>
+      currentLines.map((line) =>
+        line.id === id
+          ? {
+              ...line,
+              [field]: Number(value)
+            }
+          : line
+      )
     );
   };
 
-  const addItem = () => {
-    setItems((currentItems) => [
-      ...currentItems,
-      {
-        id: `item_${Date.now()}`,
-        description: 'Nuevo concepto',
-        quantity: 1,
-        unitPrice: 0
-      }
+  const updateAllocation = (id: string, field: keyof CostAllocation, checked: boolean) => {
+    setCostLines((currentLines) =>
+      currentLines.map((line) =>
+        line.id === id
+          ? {
+              ...line,
+              allocation: {
+                ...line.allocation,
+                [field]: checked
+              }
+            }
+          : line
+      )
+    );
+  };
+
+  const saveMonthlySnapshot = () => {
+    const snapshot: CostSnapshot = {
+      id: `${year}-${month}-${Date.now()}`,
+      month,
+      year,
+      savedAt: new Date().toISOString(),
+      lines: costLines.map((line) => ({ ...line, allocation: { ...line.allocation } }))
+    };
+
+    setSnapshots((currentSnapshots) => [
+      snapshot,
+      ...currentSnapshots.filter((item) => !(item.month === month && item.year === year))
     ]);
+    setLookupMonth(month);
+    setLookupYear(year);
   };
 
   return (
@@ -92,21 +146,13 @@ function App() {
         </div>
 
         <nav className="nav-list" aria-label="Principal">
-          <button className="nav-item active" type="button">
-            <LayoutDashboard size={18} />
-            Panel
-          </button>
-          <button className="nav-item" type="button">
-            <Users size={18} />
-            Clientes
-          </button>
-          <button className="nav-item" type="button">
-            <BriefcaseBusiness size={18} />
-            Oportunidades
-          </button>
-          <button className="nav-item" type="button">
+          <button className={`nav-item ${view === 'cotizador' ? 'active' : ''}`} onClick={() => setView('cotizador')} type="button">
             <CircleDollarSign size={18} />
             Cotizador
+          </button>
+          <button className={`nav-item ${view === 'costos' ? 'active' : ''}`} onClick={() => setView('costos')} type="button">
+            <FileSpreadsheet size={18} />
+            Estructura de costos
           </button>
         </nav>
 
@@ -114,178 +160,302 @@ function App() {
           <Smartphone size={18} />
           <div>
             <strong>{isSupabaseConfigured ? 'Supabase conectado' : 'Supabase pendiente'}</strong>
-            <span>{isSupabaseConfigured ? 'Listo para persistir datos' : 'Configurar variables .env'}</span>
+            <span>{isSupabaseConfigured ? 'Listo para guardar datos' : 'Configurar variables .env'}</span>
           </div>
         </div>
       </aside>
 
       <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Pipeline comercial</p>
-            <h1>CRM con cotizador integrado</h1>
-          </div>
-          <div className="topbar-actions">
-            <label className="search-box">
-              <Search size={18} />
-              <input placeholder="Buscar cliente, empresa o oportunidad" />
-            </label>
-            <button className="icon-button" type="button" aria-label="Descargar cotizacion">
-              <Download size={19} />
-            </button>
-            <button className="primary-button" type="button">
-              <Send size={18} />
-              Enviar cotizacion
-            </button>
-          </div>
-        </header>
-
-        <section className="metric-grid" aria-label="Metricas">
-          <Metric label="Clientes activos" value={customers.length.toString()} hint="+2 este mes" />
-          <Metric label="Pipeline abierto" value={currency.format(deals.reduce((sum, deal) => sum + deal.amount, 0))} hint="4 oportunidades" />
-          <Metric label="Cotizacion actual" value={currency.format(totals.total)} hint="IVA incluido" />
-          <Metric label="Tasa estimada" value="64%" hint="conversion ponderada" />
-        </section>
-
-        <section className="content-grid">
-          <div className="panel pipeline-panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Oportunidades</p>
-                <h2>Pipeline</h2>
-              </div>
-              <button className="ghost-button" type="button">
-                <Plus size={17} />
-                Nueva
-              </button>
-            </div>
-
-            <div className="stage-grid">
-              {stages.map((stage) => (
-                <div className="stage-column" key={stage.id}>
-                  <div className="stage-title">
-                    <span>{stage.label}</span>
-                    <strong>{deals.filter((deal) => deal.stage === stage.id).length}</strong>
-                  </div>
-                  {deals
-                    .filter((deal) => deal.stage === stage.id)
-                    .map((deal) => {
-                      const customer = customers.find((item) => item.id === deal.customerId);
-
-                      return (
-                        <article className="deal-card" key={deal.id}>
-                          <span>{customer?.company}</span>
-                          <h3>{deal.title}</h3>
-                          <div className="deal-footer">
-                            <strong>{currency.format(deal.amount)}</strong>
-                            <small>{deal.nextStep}</small>
-                          </div>
-                        </article>
-                      );
-                    })}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="panel customer-panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Cuentas</p>
-                <h2>Clientes</h2>
-              </div>
-            </div>
-
-            <div className="customer-list">
-              {customers.map((customer) => (
-                <button
-                  className={`customer-row ${customer.id === selectedCustomerId ? 'selected' : ''}`}
-                  key={customer.id}
-                  onClick={() => setSelectedCustomerId(customer.id)}
-                  type="button"
-                >
-                  <span className="avatar">{customer.company.slice(0, 2).toUpperCase()}</span>
-                  <span>
-                    <strong>{customer.company}</strong>
-                    <small>{customer.name}</small>
-                  </span>
-                  <em>{customer.status}</em>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="panel quote-panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Cotizador</p>
-              <h2>{selectedCustomer.company}</h2>
-            </div>
-            <div className="quote-meta">
-              <CalendarDays size={17} />
-              Valida hasta {new Date(initialQuote.validUntil).toLocaleDateString('es-AR')}
-            </div>
-          </div>
-
-          <div className="quote-layout">
-            <div className="quote-table">
-              <div className="quote-row quote-head">
-                <span>Concepto</span>
-                <span>Cantidad</span>
-                <span>Precio</span>
-                <span>Total</span>
-              </div>
-              {items.map((item) => (
-                <div className="quote-row" key={item.id}>
-                  <input value={item.description} onChange={(event) => updateItem(item.id, 'description', event.target.value)} />
-                  <input min="0" type="number" value={item.quantity} onChange={(event) => updateItem(item.id, 'quantity', event.target.value)} />
-                  <input min="0" type="number" value={item.unitPrice} onChange={(event) => updateItem(item.id, 'unitPrice', event.target.value)} />
-                  <strong>{currency.format(item.quantity * item.unitPrice)}</strong>
-                </div>
-              ))}
-              <button className="ghost-button add-line" onClick={addItem} type="button">
-                <Plus size={17} />
-                Agregar item
-              </button>
-            </div>
-
-            <aside className="totals-panel">
-              <label>
-                Descuento %
-                <input min="0" max="100" type="number" value={discountPercent} onChange={(event) => setDiscountPercent(Number(event.target.value))} />
-              </label>
-              <label>
-                Impuesto %
-                <input min="0" type="number" value={taxPercent} onChange={(event) => setTaxPercent(Number(event.target.value))} />
-              </label>
-              <dl>
-                <div>
-                  <dt>Subtotal</dt>
-                  <dd>{currency.format(totals.subtotal)}</dd>
-                </div>
-                <div>
-                  <dt>Descuento</dt>
-                  <dd>-{currency.format(totals.discount)}</dd>
-                </div>
-                <div>
-                  <dt>Impuestos</dt>
-                  <dd>{currency.format(totals.taxes)}</dd>
-                </div>
-                <div className="grand-total">
-                  <dt>Total</dt>
-                  <dd>{currency.format(totals.total)}</dd>
-                </div>
-              </dl>
-              <button className="primary-button wide" type="button">
-                <CheckCircle2 size={18} />
-                Aprobar y guardar
-              </button>
-            </aside>
-          </div>
-        </section>
+        {view === 'cotizador' ? (
+          <CotizadorHome totals={totals} onOpenCosts={() => setView('costos')} snapshots={snapshots.length} />
+        ) : (
+          <CostStructure
+            costLines={costLines}
+            lookupMonth={lookupMonth}
+            lookupYear={lookupYear}
+            month={month}
+            onAllocationChange={updateAllocation}
+            onBack={() => setView('cotizador')}
+            onLineChange={updateLine}
+            onLookupMonthChange={setLookupMonth}
+            onLookupYearChange={setLookupYear}
+            onMonthChange={setMonth}
+            onSave={saveMonthlySnapshot}
+            onYearChange={setYear}
+            selectedSnapshot={selectedSnapshot}
+            snapshots={snapshots}
+            totals={totals}
+            year={year}
+          />
+        )}
       </section>
     </main>
+  );
+}
+
+function CotizadorHome({ totals, onOpenCosts, snapshots }: { totals: CostTotals; onOpenCosts: () => void; snapshots: number }) {
+  return (
+    <>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">Primera seccion</p>
+          <h1>Cotizador</h1>
+        </div>
+        <button className="primary-button" onClick={onOpenCosts} type="button">
+          <FileSpreadsheet size={18} />
+          Estructura de costos
+        </button>
+      </header>
+
+      <section className="metric-grid" aria-label="Resumen de costos">
+        <Metric label="Costo total actualizado" value={currency.format(totals.total)} hint="Segun estructura vigente" />
+        <Metric label="Afectado por dia" value={currency.format(totals.perDay)} hint="Base para tarifas diarias" />
+        <Metric label="Afectado por kilometro" value={currency.format(totals.perKm)} hint="Base para tarifas por km" />
+        <Metric label="Tablas guardadas" value={String(snapshots)} hint="Historico mensual" />
+      </section>
+
+      <section className="panel quote-panel">
+        <div className="empty-state">
+          <Truck size={42} />
+          <div>
+            <h2>El cotizador tomara sus valores desde la estructura de costos</h2>
+            <p>
+              Primero definimos los costos fuente, el indice FADEEAC mensual y la afectacion de cada rubro. Despues
+              conectamos estos valores a las cotizaciones comerciales.
+            </p>
+          </div>
+          <button className="ghost-button" onClick={onOpenCosts} type="button">
+            <FileSpreadsheet size={17} />
+            Abrir costos
+          </button>
+        </div>
+      </section>
+    </>
+  );
+}
+
+type CostStructureProps = {
+  costLines: CostLine[];
+  lookupMonth: string;
+  lookupYear: string;
+  month: string;
+  onAllocationChange: (id: string, field: keyof CostAllocation, checked: boolean) => void;
+  onBack: () => void;
+  onLineChange: (id: string, field: 'sourceValue' | 'fadeeacIndex', value: string) => void;
+  onLookupMonthChange: (month: string) => void;
+  onLookupYearChange: (year: string) => void;
+  onMonthChange: (month: string) => void;
+  onSave: () => void;
+  onYearChange: (year: string) => void;
+  selectedSnapshot?: CostSnapshot;
+  snapshots: CostSnapshot[];
+  totals: CostTotals;
+  year: string;
+};
+
+function CostStructure({
+  costLines,
+  lookupMonth,
+  lookupYear,
+  month,
+  onAllocationChange,
+  onBack,
+  onLineChange,
+  onLookupMonthChange,
+  onLookupYearChange,
+  onMonthChange,
+  onSave,
+  onYearChange,
+  selectedSnapshot,
+  snapshots,
+  totals,
+  year
+}: CostStructureProps) {
+  const snapshotTotals = selectedSnapshot ? calculateTotals(selectedSnapshot.lines) : null;
+
+  return (
+    <>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">Cotizador</p>
+          <h1>Estructura de costos</h1>
+        </div>
+        <div className="topbar-actions">
+          <button className="ghost-button" onClick={onBack} type="button">
+            <CircleDollarSign size={17} />
+            Volver al cotizador
+          </button>
+          <button className="primary-button" onClick={onSave} type="button">
+            <Save size={18} />
+            Guardar mes completo
+          </button>
+        </div>
+      </header>
+
+      <section className="metric-grid" aria-label="Totales de estructura">
+        <Metric label="Total actualizado" value={currency.format(totals.total)} hint="Con indice FADEEAC" />
+        <Metric label="Costo por dia" value={currency.format(totals.perDay)} hint="Items marcados por dia" />
+        <Metric label="Costo por km" value={currency.format(totals.perKm)} hint="Items marcados por km" />
+        <Metric label="Versiones historicas" value={String(snapshots.length)} hint="Copias mensuales guardadas" />
+      </section>
+
+      <section className="panel costs-panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Planilla mensual</p>
+            <h2>Costos de origen e indice FADEEAC</h2>
+          </div>
+          <div className="period-controls">
+            <label>
+              Mes
+              <select value={month} onChange={(event) => onMonthChange(event.target.value)}>
+                {months.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Anio
+              <input value={year} onChange={(event) => onYearChange(event.target.value)} />
+            </label>
+          </div>
+        </div>
+
+        <div className="cost-table">
+          <div className="cost-row cost-head">
+            <span>Rubro</span>
+            <span>Dato de origen</span>
+            <span>FADEEAC %</span>
+            <span>Actualizado</span>
+            <span>Por dia</span>
+            <span>Por km</span>
+          </div>
+          {costLines.map((line) => {
+            const updatedValue = getUpdatedValue(line);
+
+            return (
+              <div className="cost-row" key={line.id}>
+                <strong>{line.name}</strong>
+                <input
+                  min="0"
+                  type="number"
+                  value={line.sourceValue}
+                  onChange={(event) => onLineChange(line.id, 'sourceValue', event.target.value)}
+                />
+                <input
+                  type="number"
+                  value={line.fadeeacIndex}
+                  onChange={(event) => onLineChange(line.id, 'fadeeacIndex', event.target.value)}
+                />
+                <b>{currency.format(updatedValue)}</b>
+                <label className="check-cell">
+                  <input
+                    checked={line.allocation.perDay}
+                    type="checkbox"
+                    onChange={(event) => onAllocationChange(line.id, 'perDay', event.target.checked)}
+                  />
+                </label>
+                <label className="check-cell">
+                  <input
+                    checked={line.allocation.perKm}
+                    type="checkbox"
+                    onChange={(event) => onAllocationChange(line.id, 'perKm', event.target.checked)}
+                  />
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="history-grid">
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Historico</p>
+              <h2>Consultar tabla guardada</h2>
+            </div>
+            <History size={20} />
+          </div>
+
+          <div className="period-controls history-controls">
+            <label>
+              Mes
+              <select value={lookupMonth} onChange={(event) => onLookupMonthChange(event.target.value)}>
+                {months.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Anio
+              <input value={lookupYear} onChange={(event) => onLookupYearChange(event.target.value)} />
+            </label>
+          </div>
+
+          {selectedSnapshot && snapshotTotals ? (
+            <div className="snapshot-summary">
+              <Archive size={18} />
+              <div>
+                <strong>
+                  {selectedSnapshot.month} {selectedSnapshot.year}
+                </strong>
+                <span>Guardado: {new Date(selectedSnapshot.savedAt).toLocaleString('es-AR')}</span>
+              </div>
+              <dl>
+                <div>
+                  <dt>Total</dt>
+                  <dd>{currency.format(snapshotTotals.total)}</dd>
+                </div>
+                <div>
+                  <dt>Dia</dt>
+                  <dd>{currency.format(snapshotTotals.perDay)}</dd>
+                </div>
+                <div>
+                  <dt>Km</dt>
+                  <dd>{currency.format(snapshotTotals.perKm)}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : (
+            <p className="muted-copy">Todavia no hay una tabla guardada para ese mes y anio.</p>
+          )}
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Guardado</p>
+              <h2>Version mensual completa</h2>
+            </div>
+            <CheckCircle2 size={20} />
+          </div>
+          <p className="muted-copy">
+            Al guardar, se conserva una copia de todos los rubros, sus valores de origen, indices FADEEAC, valores
+            actualizados y afectacion por dia o kilometro. En el siguiente paso esto se persistira en Supabase.
+          </p>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function getUpdatedValue(line: CostLine) {
+  return line.sourceValue * (1 + line.fadeeacIndex / 100);
+}
+
+function calculateTotals(lines: CostLine[]): CostTotals {
+  return lines.reduce(
+    (totals, line) => {
+      const updatedValue = getUpdatedValue(line);
+
+      return {
+        total: totals.total + updatedValue,
+        perDay: totals.perDay + (line.allocation.perDay ? updatedValue : 0),
+        perKm: totals.perKm + (line.allocation.perKm ? updatedValue : 0)
+      };
+    },
+    { perDay: 0, perKm: 0, total: 0 }
   );
 }
 
