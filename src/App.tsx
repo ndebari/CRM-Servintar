@@ -8,6 +8,7 @@ import {
   History,
   Plus,
   Save,
+  SquarePen,
   Smartphone,
   Truck
 } from 'lucide-react';
@@ -21,8 +22,10 @@ type CostAllocation = {
 type CostLine = {
   id: string;
   name: string;
-  sourceValue: number;
-  fadeeacIndex: number;
+  daySourceValue: number;
+  dayFadeeacIndex: number;
+  kmSourceValue: number;
+  kmFadeeacIndex: number;
   allocation: CostAllocation;
 };
 
@@ -40,16 +43,16 @@ type CostTotals = {
 };
 
 const initialCostLines: CostLine[] = [
-  { id: 'combustible', name: 'Combustible', sourceValue: 340000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
-  { id: 'lubricantes', name: 'Lubricantes', sourceValue: 52000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
-  { id: 'neumaticos', name: 'Neumaticos', sourceValue: 118000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
-  { id: 'reparaciones', name: 'Reparaciones', sourceValue: 165000, fadeeacIndex: 0, allocation: { perDay: true, perKm: true } },
-  { id: 'material-rodante', name: 'Material Rodante', sourceValue: 260000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
-  { id: 'personal', name: 'Personal', sourceValue: 980000, fadeeacIndex: 0, allocation: { perDay: true, perKm: false } },
-  { id: 'seguros', name: 'Seguros', sourceValue: 126000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
-  { id: 'patentes-tasas', name: 'Patentes y tasas', sourceValue: 76000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
-  { id: 'costo-financiero', name: 'Costo Financiero', sourceValue: 94000, fadeeacIndex: 0, allocation: { perDay: true, perKm: true } },
-  { id: 'gastos-generales', name: 'Gastos Generales', sourceValue: 210000, fadeeacIndex: 0, allocation: { perDay: false, perKm: true } }
+  { id: 'combustible', name: 'Combustible', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 340000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'lubricantes', name: 'Lubricantes', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 52000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'neumaticos', name: 'Neumaticos', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 118000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'reparaciones', name: 'Reparaciones', daySourceValue: 165000, dayFadeeacIndex: 0, kmSourceValue: 165000, kmFadeeacIndex: 0, allocation: { perDay: true, perKm: true } },
+  { id: 'material-rodante', name: 'Material Rodante', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 260000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'personal', name: 'Personal', daySourceValue: 980000, dayFadeeacIndex: 0, kmSourceValue: 0, kmFadeeacIndex: 0, allocation: { perDay: true, perKm: false } },
+  { id: 'seguros', name: 'Seguros', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 126000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'patentes-tasas', name: 'Patentes y tasas', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 76000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
+  { id: 'costo-financiero', name: 'Costo Financiero', daySourceValue: 94000, dayFadeeacIndex: 0, kmSourceValue: 94000, kmFadeeacIndex: 0, allocation: { perDay: true, perKm: true } },
+  { id: 'gastos-generales', name: 'Gastos Generales', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 210000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } }
 ];
 
 const months = [
@@ -82,13 +85,18 @@ function App() {
   const [lookupYear, setLookupYear] = useState(String(today.getFullYear()));
   const [costLines, setCostLines] = useState<CostLine[]>(initialCostLines);
   const [snapshots, setSnapshots] = useState<CostSnapshot[]>([]);
+  const [isCostEditing, setIsCostEditing] = useState(true);
   const [saveStatus, setSaveStatus] = useState('Sin guardar en esta sesion');
 
   const totals = useMemo(() => calculateTotals(costLines), [costLines]);
   const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === lookupMonth && snapshot.year === lookupYear);
   const currentSnapshot = snapshots.find((snapshot) => snapshot.month === month && snapshot.year === year);
 
-  const updateLine = (id: string, field: 'sourceValue' | 'fadeeacIndex', value: string) => {
+  const updateLine = (
+    id: string,
+    field: 'daySourceValue' | 'dayFadeeacIndex' | 'kmSourceValue' | 'kmFadeeacIndex',
+    value: string
+  ) => {
     setCostLines((currentLines) =>
       currentLines.map((line) =>
         line.id === id
@@ -127,8 +135,10 @@ function App() {
       {
         id: `costo-${Date.now()}`,
         name: 'Nuevo costo',
-        sourceValue: 0,
-        fadeeacIndex: 0,
+        daySourceValue: 0,
+        dayFadeeacIndex: 0,
+        kmSourceValue: 0,
+        kmFadeeacIndex: 0,
         allocation: {
           perDay: false,
           perKm: true
@@ -152,6 +162,7 @@ function App() {
     ]);
     setLookupMonth(month);
     setLookupYear(year);
+    setIsCostEditing(false);
 
     if (!supabase) {
       setSaveStatus('Guardado local. Supabase no esta configurado.');
@@ -187,9 +198,9 @@ function App() {
       costLines.map((line) => ({
         structure_id: structure.id,
         category_id: line.id,
-        source_value: line.sourceValue,
-        fadeeac_index: line.fadeeacIndex,
-        updated_value: getUpdatedValue(line),
+        source_value: line.kmSourceValue || line.daySourceValue,
+        fadeeac_index: line.kmFadeeacIndex || line.dayFadeeacIndex,
+        updated_value: getUpdatedValue(line, 'km') || getUpdatedValue(line, 'day'),
         applies_per_day: line.allocation.perDay,
         applies_per_km: line.allocation.perKm
       }))
@@ -243,6 +254,7 @@ function App() {
         ) : (
           <CostStructure
             costLines={costLines}
+            isCostEditing={isCostEditing}
             isCurrentMonthReady={Boolean(currentSnapshot)}
             lookupMonth={lookupMonth}
             lookupYear={lookupYear}
@@ -250,6 +262,7 @@ function App() {
             onAllocationChange={updateAllocation}
             onAddLine={addCostLine}
             onBack={() => setView('cotizador')}
+            onEdit={() => setIsCostEditing(true)}
             onLineChange={updateLine}
             onLineNameChange={updateLineName}
             onLookupMonthChange={setLookupMonth}
@@ -322,6 +335,7 @@ function CotizadorHome({
 
 type CostStructureProps = {
   costLines: CostLine[];
+  isCostEditing: boolean;
   isCurrentMonthReady: boolean;
   lookupMonth: string;
   lookupYear: string;
@@ -329,7 +343,12 @@ type CostStructureProps = {
   onAllocationChange: (id: string, field: keyof CostAllocation, checked: boolean) => void;
   onAddLine: () => void;
   onBack: () => void;
-  onLineChange: (id: string, field: 'sourceValue' | 'fadeeacIndex', value: string) => void;
+  onEdit: () => void;
+  onLineChange: (
+    id: string,
+    field: 'daySourceValue' | 'dayFadeeacIndex' | 'kmSourceValue' | 'kmFadeeacIndex',
+    value: string
+  ) => void;
   onLineNameChange: (id: string, value: string) => void;
   onLookupMonthChange: (month: string) => void;
   onLookupYearChange: (year: string) => void;
@@ -343,6 +362,7 @@ type CostStructureProps = {
 
 function CostStructure({
   costLines,
+  isCostEditing,
   isCurrentMonthReady,
   lookupMonth,
   lookupYear,
@@ -350,6 +370,7 @@ function CostStructure({
   onAllocationChange,
   onAddLine,
   onBack,
+  onEdit,
   onLineChange,
   onLineNameChange,
   onLookupMonthChange,
@@ -362,6 +383,7 @@ function CostStructure({
   year
 }: CostStructureProps) {
   const snapshotTotals = selectedSnapshot ? calculateTotals(selectedSnapshot.lines) : null;
+  const isLocked = isCurrentMonthReady && !isCostEditing;
 
   return (
     <>
@@ -396,10 +418,17 @@ function CostStructure({
             <h2>Costos de origen e indice FADEEAC</h2>
           </div>
           <div className="cost-actions">
-            <button className="ghost-button" onClick={onAddLine} type="button">
-              <Plus size={17} />
-              Agregar linea
-            </button>
+            {isLocked ? (
+              <button className="ghost-button" onClick={onEdit} type="button">
+                <SquarePen size={17} />
+                Edicion
+              </button>
+            ) : (
+              <button className="ghost-button" onClick={onAddLine} type="button">
+                <Plus size={17} />
+                Agregar linea
+              </button>
+            )}
             <div className="current-period">
               <span>Mes vigente</span>
               <strong>{month} {year}</strong>
@@ -408,52 +437,87 @@ function CostStructure({
         </div>
 
         <div className="cost-table">
-          <div className="cost-row cost-head">
+          <div className={`cost-row cost-head ${isLocked ? 'cost-row-locked' : ''}`}>
             <span>Rubro</span>
-            <span>Costo origen</span>
-            <span>Ajuste FADEEAC %</span>
             <span>x dia</span>
+            {isLocked ? null : (
+              <>
+                <span>Costo origen</span>
+                <span>FADEEAC</span>
+              </>
+            )}
             <span>Costo diario</span>
             <span>x km</span>
+            {isLocked ? null : (
+              <>
+                <span>Costo origen</span>
+                <span>FADEEAC</span>
+              </>
+            )}
             <span>Costo km</span>
           </div>
           {costLines.map((line) => {
-            const updatedValue = getUpdatedValue(line);
-            const dailyValue = line.allocation.perDay ? updatedValue : 0;
-            const kmValue = line.allocation.perKm ? updatedValue : 0;
+            const dailyValue = line.allocation.perDay ? getUpdatedValue(line, 'day') : 0;
+            const kmValue = line.allocation.perKm ? getUpdatedValue(line, 'km') : 0;
 
             return (
-              <div className="cost-row" key={line.id}>
-                <input className="rubric-input" value={line.name} onChange={(event) => onLineNameChange(line.id, event.target.value)} />
-                <input
-                  min="0"
-                  type="number"
-                  value={line.sourceValue}
-                  onChange={(event) => onLineChange(line.id, 'sourceValue', event.target.value)}
-                />
-                <input
-                  step="0.01"
-                  type="number"
-                  value={line.fadeeacIndex}
-                  onChange={(event) => onLineChange(line.id, 'fadeeacIndex', event.target.value)}
-                />
+              <div className={`cost-row ${isLocked ? 'cost-row-locked' : ''}`} key={line.id}>
+                <input className="rubric-input" disabled={isLocked} value={line.name} onChange={(event) => onLineNameChange(line.id, event.target.value)} />
                 <label className="check-cell">
                   <input
                     checked={line.allocation.perDay}
+                    disabled={isLocked}
                     type="checkbox"
                     onChange={(event) => onAllocationChange(line.id, 'perDay', event.target.checked)}
                   />
                 </label>
+                {isLocked ? null : (
+                  <>
+                    <input
+                      disabled={!line.allocation.perDay}
+                      min="0"
+                      type="number"
+                      value={line.daySourceValue}
+                      onChange={(event) => onLineChange(line.id, 'daySourceValue', event.target.value)}
+                    />
+                    <input
+                      disabled={!line.allocation.perDay}
+                      step="0.01"
+                      type="number"
+                      value={line.dayFadeeacIndex}
+                      onChange={(event) => onLineChange(line.id, 'dayFadeeacIndex', event.target.value)}
+                    />
+                  </>
+                )}
                 <span className={`allocation-value ${line.allocation.perDay ? '' : 'inactive'}`}>
                   {line.allocation.perDay ? currency.format(dailyValue) : 'No aplica'}
                 </span>
                 <label className="check-cell">
                   <input
                     checked={line.allocation.perKm}
+                    disabled={isLocked}
                     type="checkbox"
                     onChange={(event) => onAllocationChange(line.id, 'perKm', event.target.checked)}
                   />
                 </label>
+                {isLocked ? null : (
+                  <>
+                    <input
+                      disabled={!line.allocation.perKm}
+                      min="0"
+                      type="number"
+                      value={line.kmSourceValue}
+                      onChange={(event) => onLineChange(line.id, 'kmSourceValue', event.target.value)}
+                    />
+                    <input
+                      disabled={!line.allocation.perKm}
+                      step="0.01"
+                      type="number"
+                      value={line.kmFadeeacIndex}
+                      onChange={(event) => onLineChange(line.id, 'kmFadeeacIndex', event.target.value)}
+                    />
+                  </>
+                )}
                 <span className={`allocation-value ${line.allocation.perKm ? '' : 'inactive'}`}>
                   {line.allocation.perKm ? currency.format(kmValue) : 'No aplica'}
                 </span>
@@ -532,18 +596,22 @@ function CostStructure({
   );
 }
 
-function getUpdatedValue(line: CostLine) {
-  return line.sourceValue * (1 + line.fadeeacIndex / 100);
+function getUpdatedValue(line: CostLine, kind: 'day' | 'km') {
+  const sourceValue = kind === 'day' ? line.daySourceValue : line.kmSourceValue;
+  const fadeeacIndex = kind === 'day' ? line.dayFadeeacIndex : line.kmFadeeacIndex;
+
+  return sourceValue * (1 + fadeeacIndex / 100);
 }
 
 function calculateTotals(lines: CostLine[]): CostTotals {
   return lines.reduce(
     (totals, line) => {
-      const updatedValue = getUpdatedValue(line);
+      const dayValue = getUpdatedValue(line, 'day');
+      const kmValue = getUpdatedValue(line, 'km');
 
       return {
-        perDay: totals.perDay + (line.allocation.perDay ? updatedValue : 0),
-        perKm: totals.perKm + (line.allocation.perKm ? updatedValue : 0)
+        perDay: totals.perDay + (line.allocation.perDay ? dayValue : 0),
+        perKm: totals.perKm + (line.allocation.perKm ? kmValue : 0)
       };
     },
     { perDay: 0, perKm: 0 }
