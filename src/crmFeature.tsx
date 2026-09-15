@@ -16,6 +16,34 @@ declare global {
   interface Window {
     google?: {
       maps?: {
+        DirectionsService: new () => {
+          route: (
+            request: {
+              destination: string;
+              origin: string;
+              travelMode: string;
+              waypoints?: { location: string; stopover: boolean }[];
+            },
+            callback: (
+              result: {
+                routes?: {
+                  legs?: {
+                    distance?: {
+                      value: number;
+                    };
+                  }[];
+                }[];
+              } | null,
+              status: string
+            ) => void
+          ) => void;
+        };
+        DirectionsStatus?: {
+          OK: string;
+        };
+        TravelMode?: {
+          DRIVING: string;
+        };
         places?: {
           Autocomplete: new (
             input: HTMLInputElement,
@@ -187,7 +215,7 @@ export function createQuoteDraft(clientId: string): TransportQuoteDraft {
     deconsolidationDestination: '',
     emptyReturnYard: '',
     destination: '',
-    isRoundTrip: false,
+    isRoundTrip: true,
     distanceKm: 0,
     requiredDays: 1,
     state: 'Borrador',
@@ -221,8 +249,7 @@ export function calculateRequiredDays(distanceKm: number) {
 
 export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[], totals: CostTotals): PreparedQuote {
   const client = clients.find((item) => item.id === draft.clientId);
-  const routeKm = draft.isRoundTrip ? draft.distanceKm * 2 : draft.distanceKm;
-  const baseAmount = totals.perKm * routeKm + totals.perDay * draft.requiredDays;
+  const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
   const additionalsAmount = draft.additionals.reduce(
     (total, item) => total + item.amount * (1 - item.discountPercent / 100),
     0
@@ -254,7 +281,7 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       `De acuerdo con lo solicitado, enviamos cotizacion por ${draft.serviceName}.`,
       `Operacion: ${draft.transportKind.toUpperCase()} - ${draft.isRoundTrip ? 'roundtrip' : 'solo ida'}.`,
       `Recorrido: ${getRouteDescription(draft)}.`,
-      `Kilometros considerados: ${routeKm.toLocaleString('es-AR')} km.`,
+      `Kilometros considerados: ${draft.distanceKm.toLocaleString('es-AR')} km.`,
       `Dias operativos considerados: ${draft.requiredDays}.`,
       '',
       `Transporte base: ${currency.format(baseAmount)}`,
@@ -294,6 +321,54 @@ function findPreviousAdditionalAmount(quotes: PreparedQuote[], clientId: string,
   return match ? Number(match[1].replace(/\./g, '')) : undefined;
 }
 
+function getRouteStops(draft: TransportQuoteDraft) {
+  const stops =
+    draft.transportKind === 'expo'
+      ? [draft.base, draft.emptyPickup, draft.consolidationDestination, draft.deliveryPort]
+      : draft.transportKind === 'impo'
+        ? [draft.base, draft.fullPickupPort, draft.deconsolidationDestination, draft.emptyReturnYard]
+        : [draft.origin, draft.destination];
+  const cleanStops = stops.map((stop) => stop.trim()).filter(Boolean);
+
+  if (draft.isRoundTrip && cleanStops.length > 1) {
+    return [...cleanStops, cleanStops[0]];
+  }
+
+  return cleanStops;
+}
+
+function calculateRouteDistance(stops: string[]) {
+  return new Promise<number>((resolve, reject) => {
+    if (!window.google?.maps?.DirectionsService) {
+      reject(new Error('Google Directions is not available'));
+      return;
+    }
+
+    const directionsService = new window.google.maps.DirectionsService();
+    const origin = stops[0];
+    const destination = stops[stops.length - 1];
+    const waypoints = stops.slice(1, -1).map((location) => ({ location, stopover: true }));
+
+    directionsService.route(
+      {
+        origin,
+        destination,
+        waypoints,
+        travelMode: window.google.maps.TravelMode?.DRIVING ?? 'DRIVING'
+      },
+      (result, status) => {
+        if (status !== (window.google?.maps?.DirectionsStatus?.OK ?? 'OK') || !result?.routes?.[0]?.legs) {
+          reject(new Error(`Directions failed with status ${status}`));
+          return;
+        }
+
+        const meters = result.routes[0].legs.reduce((total, leg) => total + (leg.distance?.value ?? 0), 0);
+        resolve(Math.round(meters / 1000));
+      }
+    );
+  });
+}
+
 export function CotizadorHome({
   additionalCatalog,
   clients,
@@ -316,13 +391,52 @@ export function CotizadorHome({
   totals: CostTotals;
 }) {
   const selectedClient = clients.find((client) => client.id === draft.clientId);
-  const routeKm = draft.isRoundTrip ? draft.distanceKm * 2 : draft.distanceKm;
-  const baseAmount = totals.perKm * routeKm + totals.perDay * draft.requiredDays;
+  const routeStops = getRouteStops(draft);
+  const routeKey = routeStops.join('|');
+  const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
   const additionalsAmount = draft.additionals.reduce(
     (total, item) => total + item.amount * (1 - item.discountPercent / 100),
     0
   );
   const quoteTotal = baseAmount + additionalsAmount;
+  const [routeStatus, setRouteStatus] = useState('');
+
+  useEffect(() => {
+    if (routeStops.length < 2) {
+      setRouteStatus('Completa al menos dos puntos para calcular kilometros y dias.');
+      return;
+    }
+
+    let isCurrent = true;
+    const timeoutId = window.setTimeout(() => {
+      setRouteStatus('Calculando kilometros con Google...');
+
+      loadGooglePlaces()
+        .then(() => calculateRouteDistance(routeStops))
+        .then((distanceKm) => {
+          if (!isCurrent) {
+            return;
+          }
+
+          onDraftChange({
+            ...draft,
+            distanceKm,
+            requiredDays: calculateRequiredDays(distanceKm)
+          });
+          setRouteStatus('Kilometros y dias actualizados automaticamente.');
+        })
+        .catch(() => {
+          if (isCurrent) {
+            setRouteStatus('No se pudo calcular automaticamente. Podes cargar kilometros y dias manualmente.');
+          }
+        });
+    }, 700);
+
+    return () => {
+      isCurrent = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [routeKey]);
 
   const updateDraft = <K extends keyof TransportQuoteDraft>(field: K, value: TransportQuoteDraft[K]) => {
     onDraftChange({ ...draft, [field]: value });
@@ -399,7 +513,7 @@ export function CotizadorHome({
 
       <section className="metric-grid" aria-label="Resumen de cotizacion">
         <Metric label="Cliente" value={selectedClient?.alias || 'Sin cliente'} hint={selectedClient?.businessName || 'Crear o seleccionar cliente'} />
-        <Metric label="Kilometros" value={`${routeKm.toLocaleString('es-AR')} km`} hint={draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'} />
+        <Metric label="Kilometros" value={`${draft.distanceKm.toLocaleString('es-AR')} km`} hint={draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'} />
         <Metric label="Dias" value={`${draft.requiredDays}`} hint="800 km cada 24 horas" />
         <Metric label="Transporte" value={currency.format(baseAmount)} hint="Costo km + costo dia" />
         <Metric label="Total" value={currency.format(quoteTotal)} hint="Incluye adicionales netos" />
@@ -481,7 +595,7 @@ export function CotizadorHome({
 
           <div className="form-grid">
             <label>
-              Km solo ida
+              Km recorrido
               <input
                 min="0"
                 type="number"
@@ -491,7 +605,7 @@ export function CotizadorHome({
                   onDraftChange({
                     ...draft,
                     distanceKm,
-                    requiredDays: calculateRequiredDays(draft.isRoundTrip ? distanceKm * 2 : distanceKm)
+                    requiredDays: calculateRequiredDays(distanceKm)
                   });
                 }}
               />
@@ -517,6 +631,7 @@ export function CotizadorHome({
               </select>
             </label>
           </div>
+          <p className="muted-copy route-status">{routeStatus}</p>
         </div>
 
         <div className="panel">
