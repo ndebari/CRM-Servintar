@@ -155,6 +155,7 @@ export type TransportQuoteDraft = {
   isRoundTrip: boolean;
   distanceKm: number;
   requiredDays: number;
+  utilityPercent: number;
   state: QuoteStatus;
   requiredAction: string;
   additionals: QuoteAdditionalSelection[];
@@ -218,6 +219,7 @@ export function createQuoteDraft(clientId: string): TransportQuoteDraft {
     isRoundTrip: true,
     distanceKm: 0,
     requiredDays: 1,
+    utilityPercent: 0,
     state: 'Borrador',
     requiredAction: 'Enviar al cliente',
     additionals: []
@@ -247,6 +249,14 @@ export function calculateRequiredDays(distanceKm: number) {
   return Math.max(1, Math.ceil(distanceKm / 800));
 }
 
+function calculateTariffFromCost(cost: number, utilityPercent: number) {
+  if (utilityPercent >= 100) {
+    return cost;
+  }
+
+  return cost / ((100 - utilityPercent) / 100);
+}
+
 export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[], totals: CostTotals): PreparedQuote {
   const client = clients.find((item) => item.id === draft.clientId);
   const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
@@ -254,7 +264,8 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
     (total, item) => total + item.amount * (1 - item.discountPercent / 100),
     0
   );
-  const totalAmount = baseAmount + additionalsAmount;
+  const totalCost = baseAmount + additionalsAmount;
+  const totalAmount = calculateTariffFromCost(totalCost, draft.utilityPercent);
   const additionalsText =
     draft.additionals.length === 0
       ? 'No se incluyen adicionales.'
@@ -288,6 +299,8 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       'Adicionales:',
       additionalsText,
       '',
+      `Costo total: ${currency.format(totalCost)}`,
+      `Utilidad aplicada: ${draft.utilityPercent}%`,
       `Total cotizado: ${currency.format(totalAmount)}`,
       '',
       'La presente cotizacion queda sujeta a disponibilidad operativa, validacion documental y condiciones finales del servicio.',
@@ -398,7 +411,8 @@ export function CotizadorHome({
     (total, item) => total + item.amount * (1 - item.discountPercent / 100),
     0
   );
-  const quoteTotal = baseAmount + additionalsAmount;
+  const quoteCost = baseAmount + additionalsAmount;
+  const quoteTariff = calculateTariffFromCost(quoteCost, draft.utilityPercent);
   const [routeStatus, setRouteStatus] = useState('');
 
   useEffect(() => {
@@ -515,8 +529,9 @@ export function CotizadorHome({
         <Metric label="Cliente" value={selectedClient?.alias || 'Sin cliente'} hint={selectedClient?.businessName || 'Crear o seleccionar cliente'} />
         <Metric label="Kilometros" value={`${draft.distanceKm.toLocaleString('es-AR')} km`} hint={draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'} />
         <Metric label="Dias" value={`${draft.requiredDays}`} hint="800 km cada 24 horas" />
-        <Metric label="Transporte" value={currency.format(baseAmount)} hint="Costo km + costo dia" />
-        <Metric label="Total" value={currency.format(quoteTotal)} hint="Incluye adicionales netos" />
+        <Metric label="Costo" value={currency.format(quoteCost)} hint="Transporte + adicionales" />
+        <Metric label="Utilidad" value={`${draft.utilityPercent}%`} hint="Sobre tarifa final" />
+        <Metric label="Tarifa" value={currency.format(quoteTariff)} hint="Costo / margen elegido" />
       </section>
 
       <section className="content-grid quote-builder-grid">
@@ -614,6 +629,17 @@ export function CotizadorHome({
             <label>
               Dias calculados
               <input min="1" type="number" value={draft.requiredDays} onChange={(event) => updateDraft('requiredDays', Number(event.target.value))} />
+            </label>
+            <label>
+              Utilidad %
+              <input
+                max="99"
+                min="0"
+                step="0.01"
+                type="number"
+                value={draft.utilityPercent}
+                onChange={(event) => updateDraft('utilityPercent', Number(event.target.value))}
+              />
             </label>
             <label>
               Estado
