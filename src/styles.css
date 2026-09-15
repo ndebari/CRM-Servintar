@@ -190,6 +190,12 @@ h3 {
   background: #155eef;
 }
 
+.primary-button:disabled {
+  cursor: not-allowed;
+  color: #98a2b3;
+  background: #e4e7ec;
+}
+
 .ghost-button {
   padding: 0 12px;
   color: #155eef;
