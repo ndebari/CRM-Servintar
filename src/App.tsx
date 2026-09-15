@@ -2,17 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
   BadgeDollarSign,
-  CheckCircle2,
   CircleDollarSign,
   FileSpreadsheet,
   History,
   Plus,
   Save,
   SquarePen,
-  Smartphone,
   Truck
 } from 'lucide-react';
-import { isSupabaseConfigured, supabase } from './supabase';
+import { supabase } from './supabase';
 
 type CostAllocation = {
   perDay: boolean;
@@ -357,14 +355,6 @@ function App() {
             Estructura de costos
           </button>
         </nav>
-
-        <div className="sync-panel">
-          <Smartphone size={18} />
-          <div>
-            <strong>{isSupabaseConfigured ? 'Supabase conectado' : 'Supabase pendiente'}</strong>
-            <span>{isSupabaseConfigured ? 'Listo para guardar datos' : 'Configurar variables .env'}</span>
-          </div>
-        </div>
       </aside>
 
       <section className="workspace">
@@ -395,7 +385,6 @@ function App() {
             onSave={saveMonthlySnapshot}
             previousComparison={previousComparison}
             selectedSnapshot={selectedSnapshot}
-            saveStatus={saveStatus}
             totals={totals}
             year={year}
           />
@@ -489,7 +478,6 @@ type CostStructureProps = {
   onSave: () => void;
   previousComparison: CostComparison;
   selectedSnapshot?: CostSnapshot;
-  saveStatus: string;
   totals: CostTotals;
   year: string;
 };
@@ -512,7 +500,6 @@ function CostStructure({
   onSave,
   previousComparison,
   selectedSnapshot,
-  saveStatus,
   totals,
   year
 }: CostStructureProps) {
@@ -714,21 +701,6 @@ function CostStructure({
           ) : (
             <p className="muted-copy">Todavia no hay una tabla guardada para ese mes y anio.</p>
           )}
-        </div>
-
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Guardado</p>
-              <h2>Version mensual completa</h2>
-            </div>
-            <CheckCircle2 size={20} />
-          </div>
-          <p className="muted-copy">
-            Al guardar, se conserva una copia de todos los rubros, sus valores de origen, indices FADEEAC, valores
-            actualizados y afectacion por dia o kilometro. Desde ese momento el mes vigente queda habilitado para cotizar.
-          </p>
-          <p className="save-status">{saveStatus}</p>
         </div>
       </section>
     </>
