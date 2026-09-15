@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Building2,
   ClipboardList,
@@ -11,6 +11,68 @@ import {
   Truck,
   Users
 } from 'lucide-react';
+
+declare global {
+  interface Window {
+    google?: {
+      maps?: {
+        places?: {
+          Autocomplete: new (
+            input: HTMLInputElement,
+            options?: {
+              fields?: string[];
+            }
+          ) => {
+            addListener: (eventName: 'place_changed', handler: () => void) => { remove: () => void };
+            getPlace: () => {
+              formatted_address?: string;
+              name?: string;
+            };
+          };
+        };
+      };
+    };
+  }
+}
+
+let googlePlacesLoader: Promise<void> | null = null;
+
+function loadGooglePlaces() {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+
+  if (!apiKey) {
+    return Promise.reject(new Error('Missing Google Maps API key'));
+  }
+
+  if (window.google?.maps?.places) {
+    return Promise.resolve();
+  }
+
+  if (googlePlacesLoader) {
+    return googlePlacesLoader;
+  }
+
+  googlePlacesLoader = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>('script[data-google-places="true"]');
+
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('Could not load Google Places')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.async = true;
+    script.defer = true;
+    script.dataset.googlePlaces = 'true';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places&language=es&region=AR`;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Could not load Google Places'));
+    document.head.appendChild(script);
+  });
+
+  return googlePlacesLoader;
+}
 
 export type ContactInfo = {
   fullName: string;
@@ -833,10 +895,52 @@ function ContactEditor({
 }
 
 function AddressField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    let listener: { remove: () => void } | null = null;
+    let isMounted = true;
+
+    loadGooglePlaces()
+      .then(() => {
+        if (!isMounted || !inputRef.current || !window.google?.maps?.places) {
+          return;
+        }
+
+        const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+          fields: ['formatted_address', 'name']
+        });
+
+        listener = autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+          onChangeRef.current(place.formatted_address || place.name || inputRef.current?.value || '');
+        });
+      })
+      .catch(() => {
+        // If Google Places is not available, the field remains editable as a normal input.
+      });
+
+    return () => {
+      isMounted = false;
+      listener?.remove();
+    };
+  }, []);
+
   return (
     <label>
       {label}
-      <input placeholder="Direccion, ciudad o puerto" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input
+        ref={inputRef}
+        autoComplete="off"
+        placeholder="Direccion, ciudad o puerto"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </label>
   );
 }
