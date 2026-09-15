@@ -8,6 +8,7 @@ import {
   Plus,
   Save,
   SquarePen,
+  Trash2,
   Truck
 } from 'lucide-react';
 import { supabase } from './supabase';
@@ -249,6 +250,10 @@ function App() {
     ]);
   };
 
+  const deleteCostLine = (id: string) => {
+    setCostLines((currentLines) => currentLines.filter((line) => line.id !== id));
+  };
+
   const saveMonthlySnapshot = async () => {
     const snapshot: CostSnapshot = {
       id: `${year}-${month}-${Date.now()}`,
@@ -355,6 +360,7 @@ function App() {
             Estructura de costos
           </button>
         </nav>
+
       </aside>
 
       <section className="workspace">
@@ -377,6 +383,7 @@ function App() {
             onAllocationChange={updateAllocation}
             onAddLine={addCostLine}
             onBack={() => setView('cotizador')}
+            onDeleteLine={deleteCostLine}
             onEdit={() => setIsCostEditing(true)}
             onLineChange={updateLine}
             onLineNameChange={updateLineName}
@@ -466,6 +473,7 @@ type CostStructureProps = {
   onAllocationChange: (id: string, field: keyof CostAllocation, checked: boolean) => void;
   onAddLine: () => void;
   onBack: () => void;
+  onDeleteLine: (id: string) => void;
   onEdit: () => void;
   onLineChange: (
     id: string,
@@ -492,6 +500,7 @@ function CostStructure({
   onAllocationChange,
   onAddLine,
   onBack,
+  onDeleteLine,
   onEdit,
   onLineChange,
   onLineNameChange,
@@ -581,6 +590,7 @@ function CostStructure({
               </>
             )}
             <span>Costo km</span>
+            {isLocked ? null : <span>Acciones</span>}
           </div>
           {costLines.map((line) => {
             const dailyValue = line.allocation.perDay ? getUpdatedValue(line, 'day') : 0;
@@ -647,6 +657,16 @@ function CostStructure({
                 <span className={`allocation-value ${line.allocation.perKm ? '' : 'inactive'}`}>
                   {line.allocation.perKm ? currency.format(kmValue) : 'No aplica'}
                 </span>
+                {isLocked ? null : (
+                  <button
+                    aria-label={`Eliminar ${line.name}`}
+                    className="icon-button danger-button"
+                    type="button"
+                    onClick={() => onDeleteLine(line.id)}
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                )}
               </div>
             );
           })}
@@ -702,6 +722,7 @@ function CostStructure({
             <p className="muted-copy">Todavia no hay una tabla guardada para ese mes y anio.</p>
           )}
         </div>
+
       </section>
     </>
   );
