@@ -562,6 +562,7 @@ export function CotizadorHome({
               <select value={draft.base} onChange={(event) => updateDraft('base', event.target.value)}>
                 <option>Base Buenos Aires</option>
                 <option>Base Zarate</option>
+                <option>TECPLATA, La Plata, Buenos Aires, Argentina</option>
               </select>
             </label>
             <label className="check-inline">
