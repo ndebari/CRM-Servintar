@@ -496,6 +496,187 @@ h3 {
   gap: 10px;
 }
 
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.form-grid label,
+.contact-card label,
+.additional-row label {
+  display: grid;
+  gap: 6px;
+  color: #475467;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.form-grid input,
+.form-grid select,
+.contact-card input,
+.additional-row input,
+.add-control input,
+.add-control select {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #182230;
+  outline: 0;
+}
+
+.route-grid {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.quote-builder-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
+}
+
+.check-inline {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.check-inline input {
+  width: 18px;
+  height: 18px;
+  accent-color: #155eef;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.contact-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.entity-list,
+.additional-list {
+  display: grid;
+  gap: 10px;
+}
+
+.entity-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.entity-row strong,
+.entity-row span {
+  display: block;
+}
+
+.entity-row span {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 0.88rem;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  color: #344054;
+  background: #ffffff;
+  font-weight: 800;
+}
+
+.abm-block + .abm-block {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #e4e7ec;
+}
+
+.additional-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 120px 100px;
+  align-items: end;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.additional-row span {
+  color: #667085;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.additional-row.needs-confirmation {
+  border-color: #f97066;
+  background: #fff8f7;
+}
+
+.warning-check {
+  grid-column: 1 / -1;
+  color: #b42318 !important;
+}
+
+.quote-detail {
+  padding: 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.quote-detail summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.quote-detail summary span {
+  color: #667085;
+  font-size: 0.9rem;
+}
+
+.quote-detail pre {
+  margin: 14px 0 0;
+  padding: 14px;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #182230;
+  white-space: pre-wrap;
+}
+
 .period-controls label {
   display: grid;
   gap: 6px;

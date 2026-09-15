@@ -29,7 +29,6 @@ import {
   type QuoteStatus,
   type TransportQuoteDraft
 } from './crmFeature';
-
 type CostAllocation = {
   perDay: boolean;
   perKm: boolean;
@@ -92,6 +91,7 @@ type CostItemRow = {
   }[] | null;
 };
 
+
 const initialCostLines: CostLine[] = [
   { id: 'combustible', name: 'Combustible', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 340000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
   { id: 'lubricantes', name: 'Lubricantes', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 52000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } },
@@ -104,6 +104,7 @@ const initialCostLines: CostLine[] = [
   { id: 'costo-financiero', name: 'Costo Financiero', daySourceValue: 94000, dayFadeeacIndex: 0, kmSourceValue: 94000, kmFadeeacIndex: 0, allocation: { perDay: true, perKm: true } },
   { id: 'gastos-generales', name: 'Gastos Generales', daySourceValue: 0, dayFadeeacIndex: 0, kmSourceValue: 210000, kmFadeeacIndex: 0, allocation: { perDay: false, perKm: true } }
 ];
+
 
 const months = [
   'Enero',
@@ -866,3 +867,4 @@ function Metric({ label, value, hint }: { label: string; value: string; hint: st
 }
 
 export default App;
+
