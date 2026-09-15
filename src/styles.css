@@ -203,6 +203,16 @@ h3 {
   border: 1px solid #d0d5dd;
 }
 
+.danger-button {
+  color: #b42318;
+  background: #fff1f3;
+  border: 1px solid #fecdca;
+}
+
+.danger-button:hover {
+  background: #ffe4e8;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -520,10 +530,10 @@ h3 {
 
 .cost-row {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) 74px 140px 120px 150px 74px 140px 120px 150px;
+  grid-template-columns: minmax(210px, 1fr) 74px 140px 120px 150px 74px 140px 120px 150px 70px;
   align-items: center;
   gap: 10px;
-  min-width: 1240px;
+  min-width: 1320px;
   padding: 8px;
   border: 1px solid #e4e7ec;
   border-radius: 8px;
