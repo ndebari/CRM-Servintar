@@ -3,15 +3,32 @@ import {
   Archive,
   BadgeDollarSign,
   CircleDollarSign,
+  ClipboardList,
   FileSpreadsheet,
   History,
   Plus,
   Save,
   SquarePen,
   Trash2,
-  Truck
+  Users
 } from 'lucide-react';
 import { supabase } from './supabase';
+import {
+  buildPreparedQuote,
+  ClientsModule,
+  CotizadorHome,
+  createQuoteDraft,
+  initialAdditionals,
+  initialClients,
+  initialClientTypes,
+  initialQuoteStatuses,
+  initialRequiredActions,
+  QuotesModule,
+  type Client,
+  type PreparedQuote,
+  type QuoteStatus,
+  type TransportQuoteDraft
+} from './crmFeature';
 
 type CostAllocation = {
   perDay: boolean;
@@ -111,7 +128,7 @@ const currency = new Intl.NumberFormat('es-AR', {
 
 function App() {
   const today = new Date();
-  const [view, setView] = useState<'cotizador' | 'costos'>('cotizador');
+  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos'>('cotizador');
   const [month] = useState(months[today.getMonth()]);
   const [year] = useState(String(today.getFullYear()));
   const [lookupMonth, setLookupMonth] = useState(months[today.getMonth()]);
@@ -120,6 +137,13 @@ function App() {
   const [snapshots, setSnapshots] = useState<CostSnapshot[]>([]);
   const [isCostEditing, setIsCostEditing] = useState(true);
   const [saveStatus, setSaveStatus] = useState('Sin guardar en esta sesion');
+  const [clients, setClients] = useState<Client[]>(initialClients);
+  const [clientTypes, setClientTypes] = useState(initialClientTypes);
+  const [quoteStatuses, setQuoteStatuses] = useState<QuoteStatus[]>(initialQuoteStatuses);
+  const [requiredActions, setRequiredActions] = useState(initialRequiredActions);
+  const [additionalCatalog, setAdditionalCatalog] = useState(initialAdditionals);
+  const [quotes, setQuotes] = useState<PreparedQuote[]>([]);
+  const [quoteDraft, setQuoteDraft] = useState<TransportQuoteDraft>(() => createQuoteDraft(initialClients[0]?.id ?? ''));
 
   const totals = useMemo(() => calculateTotals(costLines), [costLines]);
   const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === lookupMonth && snapshot.year === lookupYear);
@@ -254,6 +278,34 @@ function App() {
     setCostLines((currentLines) => currentLines.filter((line) => line.id !== id));
   };
 
+  const saveClient = (client: Client) => {
+    setClients((currentClients) => {
+      const exists = currentClients.some((item) => item.id === client.id);
+      return exists ? currentClients.map((item) => (item.id === client.id ? client : item)) : [client, ...currentClients];
+    });
+    setQuoteDraft((currentDraft) => ({ ...currentDraft, clientId: currentDraft.clientId || client.id }));
+  };
+
+  const deleteClient = (id: string) => {
+    setClients((currentClients) => currentClients.filter((client) => client.id !== id));
+    setQuotes((currentQuotes) => currentQuotes.filter((quoteItem) => quoteItem.clientId !== id));
+    setQuoteDraft((currentDraft) => ({
+      ...currentDraft,
+      clientId: currentDraft.clientId === id ? clients.find((client) => client.id !== id)?.id ?? '' : currentDraft.clientId
+    }));
+  };
+
+  const prepareQuote = () => {
+    const preparedQuote = buildPreparedQuote(quoteDraft, clients, totals);
+    setQuotes((currentQuotes) => [preparedQuote, ...currentQuotes]);
+    setQuoteDraft((currentDraft) => ({
+      ...currentDraft,
+      state: 'Pendiente de envio',
+      requiredAction: 'Enviar al cliente'
+    }));
+    setView('cotizaciones');
+  };
+
   const saveMonthlySnapshot = async () => {
     const snapshot: CostSnapshot = {
       id: `${year}-${month}-${Date.now()}`,
@@ -355,6 +407,14 @@ function App() {
             <CircleDollarSign size={18} />
             Cotizador
           </button>
+          <button className={`nav-item ${view === 'clientes' ? 'active' : ''}`} onClick={() => setView('clientes')} type="button">
+            <Users size={18} />
+            Clientes
+          </button>
+          <button className={`nav-item ${view === 'cotizaciones' ? 'active' : ''}`} onClick={() => setView('cotizaciones')} type="button">
+            <ClipboardList size={18} />
+            Cotizaciones
+          </button>
           <button className={`nav-item ${view === 'costos' ? 'active' : ''}`} onClick={() => setView('costos')} type="button">
             <FileSpreadsheet size={18} />
             Estructura de costos
@@ -364,15 +424,39 @@ function App() {
       </aside>
 
       <section className="workspace">
-        {view === 'cotizador' ? (
+        {view === 'cotizador' && (
           <CotizadorHome
-            currentMonthLabel={`${month} ${year}`}
-            isCurrentMonthReady={Boolean(currentSnapshot)}
+            additionalCatalog={additionalCatalog}
+            clients={clients}
+            draft={quoteDraft}
+            previousQuotes={quotes}
+            onDraftChange={setQuoteDraft}
+            onOpenClients={() => setView('clientes')}
             onOpenCosts={() => setView('costos')}
-            previousComparison={previousComparison}
+            onPrepareQuote={prepareQuote}
             totals={totals}
           />
-        ) : (
+        )}
+        {view === 'clientes' && (
+          <ClientsModule
+            clientTypes={clientTypes}
+            clients={clients}
+            onClientTypesChange={setClientTypes}
+            onDeleteClient={deleteClient}
+            onSaveClient={saveClient}
+          />
+        )}
+        {view === 'cotizaciones' && (
+          <QuotesModule
+            clients={clients}
+            onRequiredActionsChange={setRequiredActions}
+            onStatusesChange={setQuoteStatuses}
+            quotes={quotes}
+            requiredActions={requiredActions}
+            statuses={quoteStatuses}
+          />
+        )}
+        {view === 'costos' && (
           <CostStructure
             costLines={costLines}
             isCostEditing={isCostEditing}
@@ -398,68 +482,6 @@ function App() {
         )}
       </section>
     </main>
-  );
-}
-
-function CotizadorHome({
-  currentMonthLabel,
-  isCurrentMonthReady,
-  totals,
-  onOpenCosts,
-  previousComparison
-}: {
-  currentMonthLabel: string;
-  isCurrentMonthReady: boolean;
-  totals: CostTotals;
-  onOpenCosts: () => void;
-  previousComparison: CostComparison;
-}) {
-  return (
-    <>
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Primera seccion</p>
-          <h1>Cotizador</h1>
-        </div>
-        <button className="primary-button" onClick={onOpenCosts} type="button">
-          <FileSpreadsheet size={18} />
-          Estructura de costos
-        </button>
-      </header>
-
-      <section className="metric-grid" aria-label="Resumen de costos">
-        <Metric label="Mes vigente" value={currentMonthLabel} hint={isCurrentMonthReady ? 'Habilitado para cotizar' : 'Pendiente de guardar'} />
-        <Metric label="Afectado por dia" value={currency.format(totals.perDay)} hint="Base para tarifas diarias" />
-        <Metric
-          label="Incremento dia"
-          value={formatPercentChange(previousComparison.perDayPercent)}
-          hint={`Contra ${previousComparison.previousLabel}`}
-        />
-        <Metric label="Afectado por km" value={currency.format(totals.perKm)} hint="Base para tarifas por kilometro" />
-        <Metric
-          label="Incremento km"
-          value={formatPercentChange(previousComparison.perKmPercent)}
-          hint={`Contra ${previousComparison.previousLabel}`}
-        />
-      </section>
-
-      <section className="panel quote-panel">
-        <div className="empty-state">
-          <Truck size={42} />
-          <div>
-            <h2>El cotizador tomara sus valores desde la estructura de costos</h2>
-            <p>
-              Primero definimos los costos fuente, el indice FADEEAC mensual y la afectacion de cada rubro. Despues
-              conectamos estos valores a las cotizaciones comerciales.
-            </p>
-          </div>
-          <button className="ghost-button" onClick={onOpenCosts} type="button">
-            <FileSpreadsheet size={17} />
-            Abrir costos
-          </button>
-        </div>
-      </section>
-    </>
   );
 }
 
