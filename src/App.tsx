@@ -527,10 +527,6 @@ function CostStructure({
             <CircleDollarSign size={17} />
             Volver al cotizador
           </button>
-          <button className="primary-button" onClick={onSave} type="button">
-            <Save size={18} />
-            Guardar mes completo
-          </button>
         </div>
       </header>
 
@@ -568,6 +564,10 @@ function CostStructure({
                 Agregar linea
               </button>
             )}
+            <button className="primary-button" onClick={onSave} type="button">
+              <Save size={18} />
+              Guardar mes completo
+            </button>
           </div>
         </div>
 
