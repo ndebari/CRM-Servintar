@@ -564,7 +564,7 @@ function CostStructure({
                 Agregar linea
               </button>
             )}
-            <button className="primary-button" onClick={onSave} type="button">
+            <button className="primary-button" disabled={isLocked} onClick={onSave} type="button">
               <Save size={18} />
               Guardar mes completo
             </button>
