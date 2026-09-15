@@ -60,14 +60,11 @@ button {
 }
 
 .brand strong,
-.brand span,
-.sync-panel strong,
-.sync-panel span {
+.brand span {
   display: block;
 }
 
-.brand span,
-.sync-panel span {
+.brand span {
   margin-top: 3px;
   color: #cbd5e1;
   font-size: 0.85rem;
@@ -102,17 +99,6 @@ button {
 .nav-item:hover {
   color: #ffffff;
   background: #1d2939;
-}
-
-.sync-panel {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: auto;
-  padding: 14px;
-  border: 1px solid #344054;
-  border-radius: 8px;
-  background: #182230;
 }
 
 .workspace {
@@ -611,7 +597,7 @@ h3 {
 
 .history-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -658,16 +644,6 @@ h3 {
   font-weight: 800;
 }
 
-.save-status {
-  margin: 14px 0 0;
-  padding: 10px 12px;
-  border-radius: 8px;
-  color: #175cd3;
-  background: #eff4ff;
-  font-size: 0.9rem;
-  font-weight: 800;
-}
-
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -686,11 +662,6 @@ h3 {
   .nav-list {
     grid-auto-flow: column;
     grid-auto-columns: max-content;
-  }
-
-  .sync-panel {
-    margin-top: 0;
-    min-width: 220px;
   }
 
   .content-grid,
@@ -744,8 +715,7 @@ h3 {
     grid-template-columns: 1fr;
   }
 
-  .brand span,
-  .sync-panel {
+  .brand span {
     display: none;
   }
 
