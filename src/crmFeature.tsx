@@ -129,7 +129,12 @@ export type CostTotals = {
   perKm: number;
 };
 
+export type AdditionalDefinition = { id: string; name: string; description: string; kind: 'fixed' | 'percent' };
+
 export type QuoteAdditionalSelection = {
+  catalogId?: string;
+  description?: string;
+  kind?: 'fixed' | 'percent';
   id: string;
   name: string;
   amount: number;
@@ -209,7 +214,7 @@ export const initialClients: Client[] = [
 export const initialClientTypes = ['Carga general', 'Importador', 'Exportador', 'Forwarder'];
 export const initialQuoteStatuses: QuoteStatus[] = ['Borrador', 'Pendiente de envio', 'Enviada', 'Aprobada', 'Rechazada'];
 export const initialRequiredActions = ['Enviar al cliente', 'Esperar aprobacion', 'Revisar tarifa', 'Solicitar datos faltantes'];
-export const initialAdditionals = ['Devolucion de vacio dia siguiente', 'Demora en la carga', 'Demora en la descarga', 'Pernocte', 'Inhabil'];
+export const initialAdditionals: AdditionalDefinition[] = ['Devolucion de vacio dia siguiente', 'Demora en la carga', 'Demora en la descarga', 'Pernocte', 'Inhabil'].map((name, index) => ({ id: 'adicional-base-' + index, name, description: '', kind: 'fixed' }));
 
 export function createQuoteDraft(clientId: string): TransportQuoteDraft {
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -275,11 +280,17 @@ function calculateTariffFromCost(cost: number, utilityPercent: number) {
   return cost / ((100 - utilityPercent) / 100);
 }
 
+export function calculateAdditionalAmount(item: QuoteAdditionalSelection, transportBase: number) {
+  if (!Number.isFinite(item.amount) || item.amount < 0 || !Number.isFinite(item.discountPercent) || item.discountPercent < 0 || item.discountPercent > 100) throw new Error('Revisá el valor y la bonificación del adicional.');
+  const gross = item.kind === 'percent' ? transportBase * item.amount / 100 : item.amount;
+  return Math.round(gross * (1 - item.discountPercent / 100) * 100) / 100;
+}
+
 export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[], totals: CostTotals): PreparedQuote {
   const client = clients.find((item) => item.id === draft.clientId);
   const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
   const additionalsAmount = draft.additionals.reduce(
-    (total, item) => total + item.amount * (1 - item.discountPercent / 100),
+    (total, item) => total + calculateAdditionalAmount(item, baseAmount),
     0
   );
   const tollSummary = summarizeTolls(draft);
@@ -293,9 +304,9 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       ? 'No se incluyen adicionales.'
       : draft.additionals
           .map((item) => {
-            const netAmount = item.amount * (1 - item.discountPercent / 100);
+            const netAmount = calculateAdditionalAmount(item, baseAmount);
             const discountText = item.discountPercent > 0 ? ` con bonificacion del ${item.discountPercent}%` : '';
-            return `- ${item.name}: ${currency.format(netAmount)}${discountText}`;
+            return `- ${item.name}: ${currency.format(netAmount)}${item.kind === "percent" ? ` (${item.amount}% del transporte base)` : ""}${discountText}${item.description ? ` — ${item.description}` : ""}`;
           })
           .join('\n');
 
@@ -447,7 +458,7 @@ export function CotizadorHome({
   onPrepareQuote,
   totals
 }: {
-  additionalCatalog: string[];
+  additionalCatalog: AdditionalDefinition[];
   clients: Client[];
   draft: TransportQuoteDraft;
   previousQuotes: PreparedQuote[];
@@ -462,7 +473,7 @@ export function CotizadorHome({
   const routeKey = getTruckRouteKey(draft);
   const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
   const additionalsAmount = draft.additionals.reduce(
-    (total, item) => total + item.amount * (1 - item.discountPercent / 100),
+    (total, item) => total + calculateAdditionalAmount(item, baseAmount),
     0
   );
   const tollSummary = summarizeTolls(draft);
@@ -583,16 +594,19 @@ export function CotizadorHome({
     onDraftChange({ ...draft, [field]: value });
   };
 
-  const addAdditional = (name: string) => {
-    if (!name || draft.additionals.some((item) => item.name === name)) {
+  const addAdditional = (id: string) => {
+    const definition = additionalCatalog.find(item => item.id === id);
+    if (!definition || draft.additionals.some((item) => item.catalogId === id || item.name === definition.name)) {
       return;
     }
 
-    const previousAmount = findPreviousAdditionalAmount(previousQuotes, draft.clientId, name);
+    const { name, description, kind } = definition;
+    const previousAmount = kind === 'fixed' ? findPreviousAdditionalAmount(previousQuotes, draft.clientId, name) : undefined;
     updateDraft('additionals', [
       ...draft.additionals,
       {
         id: `adicional-${Date.now()}`,
+        catalogId: definition.id, description, kind,
         name,
         amount: previousAmount ?? 0,
         discountPercent: 0,
@@ -868,10 +882,10 @@ export function CotizadorHome({
           <div className="period-controls add-control">
             <label>
               Agregar adicional
-              <select defaultValue="" onChange={(event) => addAdditional(event.target.value)}>
+              <select defaultValue="" onChange={(event) => { addAdditional(event.target.value); event.target.value = ""; }}>
                 <option value="">Seleccionar</option>
                 {additionalCatalog.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item.id} value={item.id}>{item.name} ({item.kind === "percent" ? "%" : "$"})</option>
                 ))}
               </select>
             </label>
@@ -886,10 +900,10 @@ export function CotizadorHome({
 
                 return (
                   <div className={`additional-row ${hasDifferentPrevious ? 'needs-confirmation' : ''}`} key={item.id}>
-                    <strong>{item.name}</strong>
+                    <div><strong>{item.name}</strong>{item.description && <p>{item.description}</p>}<small>Total adicional: {currency.format(calculateAdditionalAmount(item, baseAmount))}</small></div>
                     <label>
-                      Importe
-                      <input type="number" value={item.amount} onChange={(event) => updateAdditional(item.id, 'amount', Number(event.target.value))} />
+                      {item.kind === "percent" ? "% del transporte" : "Importe ($)"}
+                      <input aria-label={"Valor de " + item.name} type="number" min="0" step="0.01" value={item.amount} onChange={(event) => updateAdditional(item.id, 'amount', Math.max(0, Number(event.target.value)))} />
                     </label>
                     <label>
                       Bonif. %
@@ -898,9 +912,10 @@ export function CotizadorHome({
                         min="0"
                         type="number"
                         value={item.discountPercent}
-                        onChange={(event) => updateAdditional(item.id, 'discountPercent', Number(event.target.value))}
+                        onChange={(event) => updateAdditional(item.id, 'discountPercent', Math.min(100, Math.max(0, Number(event.target.value))))}
                       />
                     </label>
+                    <button className="ghost-button" type="button" aria-label={"Quitar adicional " + item.name} onClick={() => updateDraft("additionals", draft.additionals.filter(other => other.id !== item.id))}>Quitar</button>
                     {item.previousAmount !== undefined && <span>Anterior: {currency.format(item.previousAmount)}</span>}
                     {hasDifferentPrevious && (
                       <label className="check-inline warning-check">

@@ -10,7 +10,7 @@ after(() => rm(temp, { recursive: true, force: true }));
 const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
 await writeFile(`${temp}/quote.mjs`, compiled.outputText);
-const { calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+const { calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
 
 function draftWithTolls(amount) {
   const draft = { ...createQuoteDraft('demo'), distanceKm: 100, requiredDays: 1, utilityPercent: 20, tolls: [{ id: 'a:0', name: 'Peaje prueba', locality: 'Localidad prueba', road: '', province: '', amount, source: 'manual' }], tollListStatus: 'manual', additionals: [{ id: '1', name: 'Demora', amount: 1000, discountPercent: 10 }] };
@@ -77,4 +77,24 @@ test('Google errors and incomplete distances never become a zero kilometer quote
     await assert.rejects(calculateRouteDistance(['Base', 'Puerto']));
   }
   delete globalThis.window;
+});
+
+
+test('percentage additionals use transport base only, with discount before margin', () => {
+ const draft=draftWithTolls(12000);
+ draft.additionals=[{id:'pct',name:'Seguro',description:'Cobertura adicional',kind:'percent',amount:10,discountPercent:20,confirmedDifferentAmount:true},{id:'fixed',name:'Espera',kind:'fixed',amount:500,discountPercent:0,confirmedDifferentAmount:true}];
+ assert.equal(calculateAdditionalAmount(draft.additionals[0],15000),1200);
+ const quote=buildPreparedQuote(draft,[],{perDay:5000,perKm:100});
+ assert.equal(quote.amount,(15000+12000+1200+500)/0.8);
+ assert.match(quote.text,/10% del transporte base/);
+ assert.match(quote.text,/Cobertura adicional/);
+ draft.distanceKm=200;
+ assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,(25000+12000+2000+500)/0.8);
+});
+
+test('legacy additionals remain fixed and invalid amounts cannot create quotes',()=>{
+ assert.equal(calculateAdditionalAmount({amount:100,discountPercent:10},5000),90);
+ assert.equal(calculateAdditionalAmount({amount:0,kind:'percent',discountPercent:0},5000),0);
+ assert.throws(()=>calculateAdditionalAmount({amount:-1,discountPercent:0},5000));
+ assert.throws(()=>calculateAdditionalAmount({amount:10,discountPercent:101},5000));
 });

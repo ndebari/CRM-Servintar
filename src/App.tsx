@@ -1,3 +1,4 @@
+import { AdditionalsModule } from './AdditionalsModule';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
@@ -24,6 +25,7 @@ import {
   initialQuoteStatuses,
   initialRequiredActions,
   QuotesModule,
+  type AdditionalDefinition,
   type Client,
   type PreparedQuote,
   type QuoteStatus,
@@ -129,7 +131,7 @@ const currency = new Intl.NumberFormat('es-AR', {
 
 function App() {
   const today = new Date();
-  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos'>('cotizador');
+  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos' | 'adicionales'>('cotizador');
   const [month] = useState(months[today.getMonth()]);
   const [year] = useState(String(today.getFullYear()));
   const [lookupMonth, setLookupMonth] = useState(months[today.getMonth()]);
@@ -142,7 +144,19 @@ function App() {
   const [clientTypes, setClientTypes] = useState(initialClientTypes);
   const [quoteStatuses, setQuoteStatuses] = useState<QuoteStatus[]>(initialQuoteStatuses);
   const [requiredActions, setRequiredActions] = useState(initialRequiredActions);
-  const [additionalCatalog, setAdditionalCatalog] = useState(initialAdditionals);
+  const [additionalCatalog, setAdditionalCatalog] = useState<AdditionalDefinition[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('servintar.additionalCatalog.v1') ?? 'null');
+      if (Array.isArray(saved) && saved.every(item => item && typeof item.id === 'string' && typeof item.name === 'string' && typeof item.description === 'string' && ['fixed','percent'].includes(item.kind))) return saved;
+    } catch { /* Fall back to the initial catalog if storage is unavailable. */ }
+    return initialAdditionals;
+  });
+  const [additionalStatus, setAdditionalStatus] = useState('');
+  const saveAdditionalCatalog = (items: AdditionalDefinition[]) => {
+    try { localStorage.setItem('servintar.additionalCatalog.v1', JSON.stringify(items)); }
+    catch { setAdditionalStatus('No se pudo guardar el catálogo en este navegador. No se aplicaron los cambios.'); return false; }
+    setAdditionalCatalog(items); setAdditionalStatus('Catálogo guardado.'); return true;
+  };
   const [quotes, setQuotes] = useState<PreparedQuote[]>([]);
   const [quoteDraft, setQuoteDraft] = useState<TransportQuoteDraft>(() => createQuoteDraft(initialClients[0]?.id ?? ''));
 
@@ -422,6 +436,7 @@ function App() {
             <FileSpreadsheet size={18} />
             Estructura de costos
           </button>
+          <button className={`nav-item ${view === 'adicionales' ? 'active' : ''}`} onClick={() => setView('adicionales')} aria-current={view === 'adicionales' ? 'page' : undefined} type="button"><Plus size={18} />Adicionales</button>
         </nav>
         </div>
         <div className="sidebar-footer">
@@ -445,6 +460,7 @@ function App() {
             totals={totals}
           />
         )}
+        {view === 'adicionales' && <AdditionalsModule catalog={additionalCatalog} onChange={saveAdditionalCatalog} status={additionalStatus} />}
         {view === 'clientes' && (
           <ClientsModule
             clientTypes={clientTypes}
