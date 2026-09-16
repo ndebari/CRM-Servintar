@@ -1021,3 +1021,20 @@ input:not(:disabled):hover, select:not(:disabled):hover { border-color: #a2bfb5;
   .quote-detail summary { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+
+.toll-section { margin-top: 24px; padding-top: 22px; border-top: 1px solid #dfe8e4; }
+.toll-fields { margin-top: 18px; align-items: end; }
+.toll-source { color: #476b60; font-size: .76rem; line-height: 1.5; }
+.truck-profile { margin: 18px 0; padding: 14px; background: #f1f7f4; border-radius: 10px; }
+.truck-profile summary { cursor: pointer; color: #365c59; font-size: .8rem; font-weight: 600; }
+.truck-profile .form-grid { margin-top: 18px; margin-bottom: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 560px) { .truck-profile .form-grid { grid-template-columns: 1fr; } }
+
+.toll-list { display: grid; gap: 12px; margin: 16px 0; }
+.toll-card { padding: 16px; background: #f5f8f6; border: 1px solid #dfe8e4; border-radius: 12px; }
+.toll-card .form-grid { margin: 14px 0 8px; }
+.toll-card-heading, .toll-total { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.toll-card-heading span, .toll-card-heading small { color: #607a7b; font-size: .73rem; }
+.toll-total { padding: 18px; margin-top: 16px; border-radius: 12px; background: #173f3b; color: white; }
+.toll-total strong { color: #bcf2d9; font-size: 1.3rem; }
+.toll-confirm { font-size: .8rem; color: #536c6b; line-height: 1.5; }

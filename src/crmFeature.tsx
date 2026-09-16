@@ -16,34 +16,6 @@ declare global {
   interface Window {
     google?: {
       maps?: {
-        DirectionsService: new () => {
-          route: (
-            request: {
-              destination: string;
-              origin: string;
-              travelMode: string;
-              waypoints?: { location: string; stopover: boolean }[];
-            },
-            callback: (
-              result: {
-                routes?: {
-                  legs?: {
-                    distance?: {
-                      value: number;
-                    };
-                  }[];
-                }[];
-              } | null,
-              status: string
-            ) => void
-          ) => void;
-        };
-        DirectionsStatus?: {
-          OK: string;
-        };
-        TravelMode?: {
-          DRIVING: string;
-        };
         places?: {
           Autocomplete: new (
             input: HTMLInputElement,
@@ -137,6 +109,11 @@ export type QuoteAdditionalSelection = {
   confirmedDifferentAmount: boolean;
 };
 
+export type RouteToll = {
+  id: string; name: string; locality: string; road: string; province: string;
+  amount: number | null; source: 'pending' | 'automatic' | 'manual';
+};
+
 export type TransportQuoteDraft = {
   clientId: string;
   requestDate: string;
@@ -156,6 +133,11 @@ export type TransportQuoteDraft = {
   distanceKm: number;
   requiredDays: number;
   utilityPercent: number;
+  tolls: RouteToll[];
+  tollListStatus: "pending" | "detected" | "manual";
+  tollRouteKey: string;
+  truck: { tractorAxles: number; height: number; weight: number; length: number };
+  tollPayment: "" | "tag" | "cash";
   state: QuoteStatus;
   requiredAction: string;
   additionals: QuoteAdditionalSelection[];
@@ -220,6 +202,11 @@ export function createQuoteDraft(clientId: string): TransportQuoteDraft {
     distanceKm: 0,
     requiredDays: 1,
     utilityPercent: 0,
+    tolls: [],
+    tollListStatus: "pending",
+    tollRouteKey: "",
+    truck: { tractorAxles: 3, height: 0, weight: 0, length: 0 },
+    tollPayment: "",
     state: 'Borrador',
     requiredAction: 'Enviar al cliente',
     additionals: []
@@ -264,7 +251,11 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
     (total, item) => total + item.amount * (1 - item.discountPercent / 100),
     0
   );
-  const totalCost = baseAmount + additionalsAmount;
+  const tollSummary = summarizeTolls(draft);
+  if (!tollSummary.ready) {
+    throw new Error("Confirmá los peajes del recorrido actual antes de preparar la cotización.");
+  }
+  const totalCost = baseAmount + additionalsAmount + tollSummary.total;
   const totalAmount = calculateTariffFromCost(totalCost, draft.utilityPercent);
   const additionalsText =
     draft.additionals.length === 0
@@ -296,6 +287,9 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       `Dias operativos considerados: ${draft.requiredDays}.`,
       '',
       `Transporte base: ${currency.format(baseAmount)}`,
+      "Peajes · tractor 3 ejes + araña 3 ejes:",
+      ...draft.tolls.map((toll, index) => "- Paso " + (index + 1) + ": " + toll.name + " — " + toll.locality + ": " + currency.format(toll.amount!) + (toll.source === "manual" ? " (manual)" : "")),
+      "Total peajes: " + currency.format(tollSummary.total),
       'Adicionales:',
       additionalsText,
       '',
@@ -341,7 +335,7 @@ function getRouteStops(draft: TransportQuoteDraft) {
       : draft.transportKind === 'impo'
         ? [draft.base, draft.fullPickupPort, draft.deconsolidationDestination, draft.emptyReturnYard]
         : [draft.origin, draft.destination];
-  const cleanStops = stops.map((stop) => stop.trim()).filter(Boolean);
+  const cleanStops = stops.map((stop) => stop.trim());
 
   if (draft.isRoundTrip && cleanStops.length > 1) {
     return [...cleanStops, cleanStops[0]];
@@ -350,36 +344,27 @@ function getRouteStops(draft: TransportQuoteDraft) {
   return cleanStops;
 }
 
-function calculateRouteDistance(stops: string[]) {
-  return new Promise<number>((resolve, reject) => {
-    if (!window.google?.maps?.DirectionsService) {
-      reject(new Error('Google Directions is not available'));
-      return;
-    }
+export function summarizeTolls(draft: TransportQuoteDraft) {
+  const current = draft.tollRouteKey === getTruckRouteKey(draft);
+  const validAmount = (toll: RouteToll) => toll.amount !== null && Number.isFinite(toll.amount) && toll.amount >= 0;
+  const pending = draft.tolls.filter(toll => !validAmount(toll) || !toll.name.trim() || !toll.locality.trim()).length;
+  return {
+    total: current ? Math.round(draft.tolls.reduce((sum, toll) => sum + (validAmount(toll) ? toll.amount! : 0), 0) * 100) / 100 : 0,
+    pending,
+    ready: current && draft.tollListStatus !== 'pending' && pending === 0
+  };
+}
 
-    const directionsService = new window.google.maps.DirectionsService();
-    const origin = stops[0];
-    const destination = stops[stops.length - 1];
-    const waypoints = stops.slice(1, -1).map((location) => ({ location, stopover: true }));
-
-    directionsService.route(
-      {
-        origin,
-        destination,
-        waypoints,
-        travelMode: window.google.maps.TravelMode?.DRIVING ?? 'DRIVING'
-      },
-      (result, status) => {
-        if (status !== (window.google?.maps?.DirectionsStatus?.OK ?? 'OK') || !result?.routes?.[0]?.legs) {
-          reject(new Error(`Directions failed with status ${status}`));
-          return;
-        }
-
-        const meters = result.routes[0].legs.reduce((total, leg) => total + (leg.distance?.value ?? 0), 0);
-        resolve(Math.round(meters / 1000));
-      }
-    );
+export function mergeRouteTolls(incoming: RouteToll[], previous: RouteToll[]) {
+  const merged = incoming.map(toll => {
+    const old = previous.find(item => item.id === toll.id);
+    return old?.source === 'manual' ? { ...toll, ...old } : toll;
   });
+  return [...merged, ...previous.filter(toll => toll.id.startsWith('manual:') && !merged.some(item => item.id === toll.id))];
+}
+
+export function getTruckRouteKey(draft: TransportQuoteDraft) {
+  return JSON.stringify([getRouteStops(draft), draft.truck, draft.tollPayment]);
 }
 
 export function CotizadorHome({
@@ -405,52 +390,74 @@ export function CotizadorHome({
 }) {
   const selectedClient = clients.find((client) => client.id === draft.clientId);
   const routeStops = getRouteStops(draft);
-  const routeKey = routeStops.join('|');
+  const routeKey = getTruckRouteKey(draft);
   const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
   const additionalsAmount = draft.additionals.reduce(
     (total, item) => total + item.amount * (1 - item.discountPercent / 100),
     0
   );
-  const quoteCost = baseAmount + additionalsAmount;
+  const tollSummary = summarizeTolls(draft);
+  const tollReady = tollSummary.ready;
+  const quoteCost = baseAmount + additionalsAmount + tollSummary.total;
   const quoteTariff = calculateTariffFromCost(quoteCost, draft.utilityPercent);
   const [routeStatus, setRouteStatus] = useState('');
 
+  const latestDraft = useRef(draft);
+  const latestOnChange = useRef(onDraftChange);
+  latestDraft.current = draft;
+  latestOnChange.current = onDraftChange;
+  const [routeRetry, setRouteRetry] = useState(0);
+  const manualDistanceVersion = useRef(0);
+
   useEffect(() => {
-    if (routeStops.length < 2) {
-      setRouteStatus('Completa al menos dos puntos para calcular kilometros y dias.');
+    let active = true;
+    const controller = new AbortController();
+    const current = latestDraft.current;
+    if (current.tollRouteKey !== routeKey) {
+      latestOnChange.current({ ...current, distanceKm: 0, requiredDays: 1, tolls: [], tollListStatus: 'pending', tollRouteKey: routeKey });
+    }
+    if (current.tollRouteKey === routeKey && current.tollListStatus !== 'pending' && routeRetry === 0) {
+      setRouteStatus('Listado conservado para este recorrido. Podés editar cada tarifa o volver a consultar.');
       return;
     }
-
-    let isCurrent = true;
-    const timeoutId = window.setTimeout(() => {
-      setRouteStatus('Calculando kilometros con Google...');
-
-      loadGooglePlaces()
-        .then(() => calculateRouteDistance(routeStops))
-        .then((distanceKm) => {
-          if (!isCurrent) {
-            return;
-          }
-
-          onDraftChange({
-            ...draft,
-            distanceKm,
-            requiredDays: calculateRequiredDays(distanceKm)
-          });
-          setRouteStatus('Kilometros y dias actualizados automaticamente.');
-        })
-        .catch(() => {
-          if (isCurrent) {
-            setRouteStatus('No se pudo calcular automaticamente. Podes cargar kilometros y dias manualmente.');
-          }
+    if (routeStops.some(stop => !stop) || routeStops.length < 2) {
+      setRouteStatus('Completá todos los puntos del recorrido. Los peajes incluyen la vuelta si seleccionás Roundtrip.');
+      return;
+    }
+    if (!current.truck.tractorAxles || !current.truck.height || !current.truck.weight || !current.truck.length || !current.tollPayment) {
+      setRouteStatus('Completá la configuración del camión y la forma de pago para consultar automáticamente. También podés cargar kilómetros y peajes manualmente.');
+      return;
+    }
+    const distanceVersion = manualDistanceVersion.current;
+    const timeoutId = window.setTimeout(async () => {
+      setRouteStatus('Consultando recorrido de tránsito pesado y peajes para el camión…');
+      try {
+        const response = await fetch('/.netlify/functions/truck-route', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+          body: JSON.stringify({ stops: routeStops, truck: current.truck, payment: current.tollPayment })
         });
-    }, 700);
-
-    return () => {
-      isCurrent = false;
-      window.clearTimeout(timeoutId);
-    };
-  }, [routeKey]);
+        if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Cálculo automático pendiente de activar. Podés cargar kilómetros y peajes manualmente; la ruta no está verificada.');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'No se pudo consultar el recorrido.');
+        if (!Number.isFinite(result.distanceKm) || result.distanceKm <= 0 || result.currency !== 'ARS' || !Array.isArray(result.tolls) || result.tolls.some((toll: RouteToll) => typeof toll.id !== 'string' || typeof toll.name !== 'string' || typeof toll.locality !== 'string' || (toll.amount !== null && (typeof toll.amount !== 'number' || !Number.isFinite(toll.amount) || toll.amount < 0)))) throw new Error('El proveedor devolvió un cálculo incompleto. Revisá los importes manualmente.');
+        if (!active || getTruckRouteKey(latestDraft.current) !== routeKey) return;
+        const latest = latestDraft.current;
+        const mergedTolls = mergeRouteTolls(result.tolls, latest.tollRouteKey === routeKey ? latest.tolls : []);
+        const keepDistance = distanceVersion !== manualDistanceVersion.current;
+        latestOnChange.current({ ...latest,
+          distanceKm: keepDistance ? latest.distanceKm : result.distanceKm,
+          requiredDays: keepDistance ? latest.requiredDays : calculateRequiredDays(result.distanceKm),
+          tolls: mergedTolls,
+          tollListStatus: 'detected',
+          tollRouteKey: routeKey
+        });
+        setRouteStatus(keepDistance ? 'Listado actualizado. Conservamos tus kilómetros manuales: verificá que correspondan al mismo recorrido.' : 'Peajes detectados en orden de paso para 6 ejes. Completá las localidades o tarifas que el proveedor no haya informado. Tus correcciones manuales se conservan.');
+      } catch (error) {
+        if (active && getTruckRouteKey(latestDraft.current) === routeKey) setRouteStatus(error instanceof Error ? error.message : 'No se pudo consultar el recorrido de camión.');
+      }
+    }, 900);
+    return () => { active = false; controller.abort(); window.clearTimeout(timeoutId); };
+  }, [routeKey, routeRetry]);
 
   const updateDraft = <K extends keyof TransportQuoteDraft>(field: K, value: TransportQuoteDraft[K]) => {
     onDraftChange({ ...draft, [field]: value });
@@ -495,6 +502,7 @@ export function CotizadorHome({
   };
 
   const canPrepare =
+    tollReady &&
     Boolean(draft.clientId) &&
     draft.distanceKm > 0 &&
     draft.requiredDays > 0 &&
@@ -530,9 +538,9 @@ export function CotizadorHome({
         <Metric label="Cliente" value={selectedClient?.alias || 'Sin cliente'} hint={selectedClient?.businessName || 'Crear o seleccionar cliente'} />
         <Metric label="Kilometros" value={`${draft.distanceKm.toLocaleString('es-AR')} km`} hint={draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'} />
         <Metric label="Dias" value={`${draft.requiredDays}`} hint="800 km cada 24 horas" />
-        <Metric label="Costo" value={currency.format(quoteCost)} hint="Transporte + adicionales" />
+        <Metric label="Costo" value={currency.format(quoteCost)} hint={tollReady ? "Transporte + peajes + adicionales" : "Subtotal: peajes pendientes"} />
         <Metric label="Utilidad" value={`${draft.utilityPercent}%`} hint="Sobre tarifa final" />
-        <Metric label="Tarifa" value={currency.format(quoteTariff)} hint="Costo / margen elegido" />
+        <Metric label="Tarifa" value={tollReady ? currency.format(quoteTariff) : "Pendiente"} hint={tollReady ? "Incluye peajes y utilidad" : "Completar peajes"} />
       </section>
 
       <section className="content-grid quote-builder-grid">
@@ -618,6 +626,7 @@ export function CotizadorHome({
                 type="number"
                 value={draft.distanceKm}
                 onChange={(event) => {
+                  manualDistanceVersion.current += 1;
                   const distanceKm = Number(event.target.value);
                   onDraftChange({
                     ...draft,
@@ -629,7 +638,7 @@ export function CotizadorHome({
             </label>
             <label>
               Dias calculados
-              <input min="1" type="number" value={draft.requiredDays} onChange={(event) => updateDraft('requiredDays', Number(event.target.value))} />
+              <input min="1" type="number" value={draft.requiredDays} onChange={(event) => { manualDistanceVersion.current += 1; updateDraft('requiredDays', Number(event.target.value)); }} />
             </label>
             <label>
               Utilidad %
@@ -659,7 +668,53 @@ export function CotizadorHome({
               </select>
             </label>
           </div>
-          <p className="muted-copy route-status">{routeStatus}</p>
+          <section className="toll-section" aria-label="Peajes para camión">
+            <div className="panel-header">
+              <div><p className="eyebrow">Tránsito pesado</p><h2>Peajes del recorrido</h2></div>
+              <Truck size={20} />
+            </div>
+            <p className="muted-copy">Tractor de 3 ejes + araña de 3 ejes · 6 ejes en total. Una fila por cada paso de peaje, incluida la vuelta.</p>
+            <div className="form-grid toll-fields">
+              <label>Pago de peajes
+                <select value={draft.tollPayment} onChange={(event) => updateDraft('tollPayment', event.target.value as TransportQuoteDraft['tollPayment'])}>
+                  <option value="">Seleccionar</option><option value="tag">TelePASE</option><option value="cash">Efectivo</option>
+                </select>
+              </label>
+              <button className="ghost-button" type="button" onClick={() => setRouteRetry(value => value + 1)}>Consultar peajes</button>
+              <button className="ghost-button" type="button" onClick={() => onDraftChange({ ...draft,
+                tolls: [...draft.tolls, { id: 'manual:' + crypto.randomUUID(), name: '', locality: '', road: '', province: '', amount: null, source: 'manual' }],
+                tollRouteKey: routeKey, tollListStatus: 'pending'
+              })}>Agregar peaje</button>
+            </div>
+            {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Consultá la ruta o cargá los peajes manualmente.' : 'Recorrido confirmado sin peajes.'}</p>}
+            <div className="toll-list">
+              {draft.tolls.map((toll, index) => (
+                <div className="toll-card" key={toll.id}>
+                  <div className="toll-card-heading"><strong>Paso {index + 1}</strong><span>{toll.source === 'automatic' ? 'Tarifa estimada · 6 ejes' : toll.amount === null ? 'Importe pendiente' : 'Importe manual'}</span></div>
+                  <div className="form-grid">
+                    <label>Nombre del peaje<input aria-label={'Nombre del peaje ' + (index + 1)} value={toll.name} placeholder="Completar nombre" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, name: event.target.value, source: 'manual' } : item))} /></label>
+                    <label>Localidad<input aria-label={'Localidad del peaje ' + (index + 1)} value={toll.locality} placeholder="Localidad no informada" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, locality: event.target.value, source: 'manual' } : item))} /></label>
+                    <label>Importe (ARS)<input aria-label={'Importe del peaje ' + (index + 1)} type="number" min="0" step="0.01" placeholder="Completar tarifa" value={toll.amount ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, amount: event.target.value === '' ? null : Math.max(0, Number(event.target.value)), source: 'manual' } : item))} /></label>
+                  </div>
+                  <div className="toll-card-heading"><small>{[toll.road, toll.province].filter(Boolean).join(' · ')}</small>
+                    {toll.id.startsWith('manual:') && <button className="ghost-button" type="button" aria-label={'Quitar peaje ' + (index + 1)} onClick={() => onDraftChange({ ...draft, tolls: draft.tolls.filter(item => item.id !== toll.id), tollListStatus: 'pending' })}>Quitar</button>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {draft.tollListStatus !== 'detected' && <label className="check-inline toll-confirm"><input type="checkbox" checked={draft.tollListStatus === 'manual'} onChange={event => updateDraft('tollListStatus', event.target.checked ? 'manual' : 'pending')} />{draft.tolls.length ? 'Confirmo que cargué todos los peajes del recorrido' : 'Confirmo que este recorrido no tiene peajes'}</label>}
+            <div className="toll-total" aria-live="polite"><span>{tollReady ? 'Total peajes' : 'Subtotal peajes cargados'}</span><strong>{currency.format(tollSummary.total)}</strong></div>
+            {!tollReady && <p className="toll-source">{tollSummary.pending ? 'Falta completar ' + tollSummary.pending + ' peaje(s). La tarifa final se habilita cuando todos estén completos.' : 'Falta confirmar el listado del recorrido.'}</p>}
+            <details className="truck-profile" open={!draft.truck.height || !draft.truck.weight || !draft.truck.length}>
+              <summary>Dimensiones del conjunto · tractor 3 + araña 3</summary>
+              <div className="form-grid">
+                {([{ field: 'height', label: 'Altura total (m)', max: 6 }, { field: 'weight', label: 'Peso bruto cargado (t)', max: 100 }, { field: 'length', label: 'Largo total (m)', max: 30 }] as const).map(item => (
+                  <label key={item.field}>{item.label}<input type="number" min="0.1" max={item.max} step="0.01" placeholder="Confirmar" value={draft.truck[item.field] || ''} onChange={event => updateDraft('truck', { ...draft.truck, [item.field]: Number(event.target.value) })} /></label>
+                ))}
+              </div>
+            </details>
+            <p className="muted-copy route-status" role="status">{routeStatus}</p>
+          </section>
         </div>
 
         <div className="panel">
