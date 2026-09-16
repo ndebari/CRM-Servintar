@@ -339,6 +339,9 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       `Utilidad aplicada: ${draft.utilityPercent}%`,
       `Total cotizado: ${currency.format(totalAmount)}`,
       '',
+      'Las tarifas no incluyen Impuestos aplicables.',
+      'Seguros de la carga a cargo del dueño de la mercadería con clausula de no repetición a favor del transporte.',
+      '',
       'La presente cotizacion queda sujeta a disponibilidad operativa, validacion documental y condiciones finales del servicio.',
       'Quedamos atentos a sus comentarios.'
     ].join('\n')
@@ -874,7 +877,7 @@ export function CotizadorHome({
           <div className="panel-header">
             <div>
               <p className="eyebrow">Adicionales</p>
-              <h2>Bonificaciones y antecedentes</h2>
+              <h2>Adicionales de la cotización</h2>
             </div>
             <Plus size={20} />
           </div>
@@ -885,7 +888,7 @@ export function CotizadorHome({
               <select defaultValue="" onChange={(event) => { addAdditional(event.target.value); event.target.value = ""; }}>
                 <option value="">Seleccionar</option>
                 {additionalCatalog.map((item) => (
-                  <option key={item.id} value={item.id}>{item.name} ({item.kind === "percent" ? "%" : "$"})</option>
+                  <option key={item.id} value={item.id} disabled={draft.additionals.some(selected => selected.catalogId === item.id || selected.name === item.name)}>{item.name} ({item.kind === "percent" ? "%" : "$"})</option>
                 ))}
               </select>
             </label>
@@ -915,7 +918,7 @@ export function CotizadorHome({
                         onChange={(event) => updateAdditional(item.id, 'discountPercent', Math.min(100, Math.max(0, Number(event.target.value))))}
                       />
                     </label>
-                    <button className="ghost-button" type="button" aria-label={"Quitar adicional " + item.name} onClick={() => updateDraft("additionals", draft.additionals.filter(other => other.id !== item.id))}>Quitar</button>
+                    <button className="ghost-button" type="button" aria-label={"Eliminar adicional " + item.name} onClick={() => updateDraft("additionals", draft.additionals.filter(other => other.id !== item.id))}>Eliminar</button>
                     {item.previousAmount !== undefined && <span>Anterior: {currency.format(item.previousAmount)}</span>}
                     {hasDifferentPrevious && (
                       <label className="check-inline warning-check">
