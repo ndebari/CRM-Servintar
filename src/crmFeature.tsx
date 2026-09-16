@@ -506,8 +506,9 @@ export function CotizadorHome({
     <>
       <header className="topbar">
         <div>
-          <p className="eyebrow">Cotizador</p>
+          <p className="eyebrow">Gestión comercial</p>
           <h1>Cotizador</h1>
+          <p className="page-description">Cada viaje empieza con una buena cotización.</p>
         </div>
         <div className="topbar-actions">
           <button className="ghost-button" onClick={onOpenClients} type="button">

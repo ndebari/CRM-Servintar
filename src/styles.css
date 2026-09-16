@@ -187,7 +187,7 @@ h3 {
 .primary-button {
   padding: 0 16px;
   color: #ffffff;
-  background: #155eef;
+  background: #087f72;
 }
 
 .primary-button:disabled {
@@ -198,8 +198,8 @@ h3 {
 
 .ghost-button {
   padding: 0 12px;
-  color: #155eef;
-  background: #eff4ff;
+  color: #087f72;
+  background: #edf8f5;
 }
 
 .icon-button {
@@ -334,8 +334,8 @@ h3 {
 }
 
 .customer-row.selected {
-  border-color: #155eef;
-  background: #eff4ff;
+  border-color: #087f72;
+  background: #edf8f5;
 }
 
 .avatar {
@@ -356,7 +356,7 @@ h3 {
 }
 
 .customer-row em {
-  color: #175cd3;
+  color: #087f72;
   font-size: 0.76rem;
   font-style: normal;
   font-weight: 800;
@@ -473,7 +473,7 @@ h3 {
 }
 
 .empty-state svg {
-  color: #155eef;
+  color: #087f72;
 }
 
 .empty-state p,
@@ -549,7 +549,7 @@ h3 {
 .check-inline input {
   width: 18px;
   height: 18px;
-  accent-color: #155eef;
+  accent-color: #087f72;
 }
 
 .contact-grid {
@@ -753,7 +753,7 @@ h3 {
 .check-cell input {
   width: 18px;
   height: 18px;
-  accent-color: #155eef;
+  accent-color: #087f72;
 }
 
 .cost-row input:disabled {
@@ -924,3 +924,100 @@ h3 {
     font-size: 0;
   }
 }
+
+/* Servintar visual system */
+:root {
+  color: #263c43;
+  background: #f3f6f5;
+  -webkit-font-smoothing: antialiased;
+}
+.app-shell { grid-template-columns: 244px minmax(0, 1fr); }
+.sidebar {
+  position: sticky; top: 0; height: 100vh; padding: 32px 18px;
+  background: #112e32; gap: 36px;
+}
+.brand { padding: 0 8px; }
+.brand-mark { width: 42px; height: 42px; flex-shrink: 0; border-radius: 13px; background: #a3e6cc; color: #163e3b; }
+.brand strong { font-size: 1.05rem; letter-spacing: -.03em; }
+.brand span { color: #a2bab9; font-size: .73rem; }
+.nav-section-label { margin: 0 14px 12px; color: #9bb6b5; font-size: .65rem; letter-spacing: .14em; font-weight: 700; text-transform: uppercase; }
+.nav-item { min-height: 48px; gap: 12px; border-radius: 10px; font-size: .84rem; color: #b8cecc; transition: background .16s, color .16s; }
+.nav-item:hover { background: #1c3e42; }
+.nav-item.active { background: #a3e6cc; color: #153d38; font-weight: 700; }
+.nav-item svg { flex-shrink: 0; }
+.sidebar-footer { margin-top: auto; padding: 18px 12px 0; border-top: 1px solid #315054; }
+.sidebar-footer strong { display: block; color: #dbeae6; font-size: .8rem; }
+.sidebar-footer span { display: block; margin-top: 6px; color: #9bb6b5; font-size: .73rem; line-height: 1.6; }
+.workspace { min-width: 0; padding: 36px clamp(20px, 2.7vw, 48px); gap: 26px; }
+.topbar { padding: 4px 0 8px; }
+h1 { font-size: clamp(1.7rem, 2.7vw, 2.3rem); letter-spacing: -.045em; line-height: 1.15; color: #17383b; font-weight: 650; }
+h2 { color: #243f43; font-size: 1.06rem; letter-spacing: -.025em; }
+.eyebrow { margin-bottom: 8px; font-size: .65rem; letter-spacing: .12em; color: #6c8386; }
+.page-description { margin: 10px 0 0; color: #708486; font-size: .86rem; line-height: 1.5; }
+.primary-button, .ghost-button, .icon-button { min-height: 42px; border-radius: 10px; font-size: .8rem; font-weight: 650; transition: background .16s, box-shadow .16s; }
+.primary-button:not(:disabled):hover { background: #06695e; box-shadow: 0 4px 12px #087f7225; }
+.ghost-button { background: white; border: 1px solid #dae5e1; color: #365c59; }
+.ghost-button:hover { background: #edf8f5; border-color: #a1cdc0; }
+:where(button, input, select, summary):focus-visible { outline: 3px solid #58bca3; outline-offset: 3px; }
+.metric-grid { gap: 12px; }
+.metric-grid[aria-label="Resumen de cotizacion"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.metric-card, .panel { border-color: #dfe8e4; border-radius: 16px; box-shadow: 0 3px 12px #183d3004; }
+.metric-card { padding: 20px; gap: 10px; align-content: start; min-width: 0; }
+.metric-card > span { font-size: .75rem; color: #607a7b; }
+.metric-card strong { color: #204745; font-size: clamp(1.2rem, 1.7vw, 1.65rem); font-weight: 650; letter-spacing: -.04em; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.metric-card small { font-size: .69rem; line-height: 1.5; color: #728584; }
+.metric-grid[aria-label="Resumen de cotizacion"] .metric-card:last-child { background: #173f3b; border-color: #173f3b; }
+.metric-grid[aria-label="Resumen de cotizacion"] .metric-card:last-child strong { color: #bcf2d9; }
+.metric-grid[aria-label="Resumen de cotizacion"] .metric-card:last-child span,
+.metric-grid[aria-label="Resumen de cotizacion"] .metric-card:last-child small { color: #c1d8d1; }
+.panel { padding: 24px; min-width: 0; }
+.panel-header { padding-bottom: 18px; border-bottom: 1px solid #edf1ef; margin-bottom: 22px; }
+.panel-header > svg { color: #528b7c; padding: 9px; width: 38px; height: 38px; border-radius: 11px; background: #edf6f1; }
+.content-grid { align-items: start; }
+.quote-builder-grid { grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); }
+.form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 14px; margin-bottom: 22px; }
+.form-grid label, .contact-card label, .additional-row label, .period-controls label { font-size: .73rem; font-weight: 600; color: #536c6b; gap: 8px; min-width: 0; }
+.form-grid input, .form-grid select, .contact-card input, .additional-row input, .add-control input, .add-control select, .period-controls input, .period-controls select, .cost-row input { min-width: 0; height: 43px; border-color: #d9e3df; border-radius: 9px; color: #2e4947; font-size: .8rem; }
+input:not(:disabled):hover, select:not(:disabled):hover { border-color: #a2bfb5; }
+.route-grid { padding: 18px; background: #f1f7f4; border: 1px solid #e3ede7; border-radius: 12px; }
+.route-status { font-size: .75rem; padding: 12px 14px; border-radius: 9px; background: #f6f8f7; }
+.add-control { margin-bottom: 20px; }
+.add-control label { width: 100%; }
+.additional-row, .entity-row, .contact-card, .quote-detail { border-radius: 12px; border-color: #e0e8e3; }
+.contact-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.muted-copy { font-size: .85rem; }
+.cost-head { background: #edf5f1; color: #4c6d62; }
+.cost-row b, .allocation-value { font-variant-numeric: tabular-nums; }
+@media (min-width: 1500px) { .metric-grid[aria-label="Resumen de cotizacion"] { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+@media (max-width: 1180px) {
+  .app-shell { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { height: auto; flex-direction: row; padding: 14px 20px; gap: 24px; }
+  .sidebar-footer, .nav-section-label { display: none; }
+  .brand { flex-shrink: 0; }
+  .nav-item { white-space: nowrap; }
+  .content-grid, .quote-builder-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 820px) {
+  .workspace { padding: 24px 18px; gap: 20px; }
+  .topbar-actions { flex-direction: row; flex-wrap: wrap; }
+  .panel { padding: 20px; }
+  .contact-grid { grid-template-columns: 1fr; }
+  .period-controls, .panel-header { flex-wrap: wrap; }
+}
+@media (max-width: 560px) {
+  .sidebar { flex-direction: column; align-items: stretch; gap: 14px; padding: 14px 16px; }
+  .brand { padding: 0; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 9px; }
+  .nav-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-flow: row; gap: 4px; }
+  .nav-item { width: auto; min-height: 54px; flex-direction: column; gap: 6px; font-size: .6rem; white-space: normal; text-align: center; padding: 6px 2px; }
+  .metric-grid, .metric-grid[aria-label="Resumen de cotizacion"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .metric-card { padding: 15px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .additional-row { grid-template-columns: minmax(0, 1fr) 90px; }
+  .additional-row > span { grid-column: 1 / -1; }
+  .entity-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .entity-row > :first-child { grid-column: 1 / -1; }
+  .topbar-actions > button { flex: 1; }
+  .quote-detail summary { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }

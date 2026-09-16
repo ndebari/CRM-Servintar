@@ -399,28 +399,35 @@ function App() {
           </div>
           <div>
             <strong>CRM Servintar</strong>
-            <span>PWA operativa</span>
+            <span>Gestión de transporte</span>
           </div>
         </div>
 
+        <div>
+          <p className="nav-section-label">Espacio de trabajo</p>
         <nav className="nav-list" aria-label="Principal">
-          <button className={`nav-item ${view === 'cotizador' ? 'active' : ''}`} onClick={() => setView('cotizador')} type="button">
+          <button className={`nav-item ${view === 'cotizador' ? 'active' : ''}`} onClick={() => setView('cotizador')} aria-current={view === 'cotizador' ? 'page' : undefined} type="button">
             <CircleDollarSign size={18} />
             Cotizador
           </button>
-          <button className={`nav-item ${view === 'clientes' ? 'active' : ''}`} onClick={() => setView('clientes')} type="button">
+          <button className={`nav-item ${view === 'clientes' ? 'active' : ''}`} onClick={() => setView('clientes')} aria-current={view === 'clientes' ? 'page' : undefined} type="button">
             <Users size={18} />
             Clientes
           </button>
-          <button className={`nav-item ${view === 'cotizaciones' ? 'active' : ''}`} onClick={() => setView('cotizaciones')} type="button">
+          <button className={`nav-item ${view === 'cotizaciones' ? 'active' : ''}`} onClick={() => setView('cotizaciones')} aria-current={view === 'cotizaciones' ? 'page' : undefined} type="button">
             <ClipboardList size={18} />
             Cotizaciones
           </button>
-          <button className={`nav-item ${view === 'costos' ? 'active' : ''}`} onClick={() => setView('costos')} type="button">
+          <button className={`nav-item ${view === 'costos' ? 'active' : ''}`} onClick={() => setView('costos')} aria-current={view === 'costos' ? 'page' : undefined} type="button">
             <FileSpreadsheet size={18} />
             Estructura de costos
           </button>
         </nav>
+        </div>
+        <div className="sidebar-footer">
+          <strong>Todo listo para avanzar</strong>
+          <span>Clientes, costos y cotizaciones en un solo lugar.</span>
+        </div>
 
       </aside>
 
