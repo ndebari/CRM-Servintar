@@ -111,7 +111,9 @@ export type QuoteAdditionalSelection = {
 
 export type RouteToll = {
   id: string; name: string; locality: string; road: string; province: string;
-  amount: number | null; source: 'pending' | 'automatic' | 'manual';
+  amount: number | null; source: 'pending' | 'automatic' | 'official' | 'manual';
+  operator?: string; period?: string; direction?: string;
+  sourceUrl?: string; sourcePage?: string; category?: string; checkedAt?: string; lookupMessage?: string;
 };
 
 export type TransportQuoteDraft = {
@@ -358,7 +360,7 @@ export function summarizeTolls(draft: TransportQuoteDraft) {
 export function mergeRouteTolls(incoming: RouteToll[], previous: RouteToll[]) {
   const merged = incoming.map(toll => {
     const old = previous.find(item => item.id === toll.id);
-    return old?.source === 'manual' ? { ...toll, ...old } : toll;
+    return old?.source === 'manual' || old?.source === 'official' ? { ...toll, ...old } : toll;
   });
   return [...merged, ...previous.filter(toll => toll.id.startsWith('manual:') && !merged.some(item => item.id === toll.id))];
 }
@@ -458,6 +460,50 @@ export function CotizadorHome({
     }, 900);
     return () => { active = false; controller.abort(); window.clearTimeout(timeoutId); };
   }, [routeKey, routeRetry]);
+
+  const [officialRetry, setOfficialRetry] = useState(0);
+  const [officialStatus, setOfficialStatus] = useState('');
+  const officialLookupKey = JSON.stringify([draft.tollPayment, draft.tolls.map(toll => [toll.id, toll.name, toll.operator, toll.period, toll.direction, toll.source === 'manual' && toll.amount !== null])]);
+  useEffect(() => {
+    const current = latestDraft.current;
+    const candidates = current.tolls.filter(toll => toll.name.trim() && !(toll.source === 'manual' && toll.amount !== null));
+    if (!candidates.length) { setOfficialStatus('Los importes que ingresás manualmente se conservan.'); return; }
+    let active = true;
+    const controller = new AbortController();
+    const stamp = (toll: RouteToll) => JSON.stringify([toll.name, toll.operator, toll.period, toll.direction]);
+    const timer = window.setTimeout(async () => {
+      setOfficialStatus('Buscando publicaciones oficiales de las concesionarias…');
+      const beforeLookup = latestDraft.current;
+      latestOnChange.current({ ...beforeLookup, tolls: beforeLookup.tolls.map(toll =>
+        candidates.some(item => item.id === toll.id) && toll.source === 'official'
+          ? { ...toll, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: 'Verificando publicación actual…' } : toll
+      ) });
+      try {
+        const response = await fetch('/.netlify/functions/official-tolls', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+          body: JSON.stringify({ axles: 6, payment: current.tollPayment, tolls: candidates.map(toll => ({ id: toll.id, name: toll.name, operator: toll.operator, period: toll.period, direction: toll.direction })) })
+        });
+        if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error('No se pudo consultar las publicaciones. Podés completar los importes manualmente.');
+        const result = await response.json();
+        if (!Array.isArray(result.tolls)) throw new Error('Respuesta de tarifas inválida.');
+        if (!active) return;
+        const latest = latestDraft.current;
+        if (getTruckRouteKey(latest) !== getTruckRouteKey(current)) return;
+        latestOnChange.current({ ...latest, tolls: latest.tolls.map(toll => {
+          const sent = candidates.find(item => item.id === toll.id);
+          const found = result.tolls.find((item: RouteToll) => item.id === toll.id);
+          if (!sent || !found || stamp(sent) !== stamp(toll) || (toll.source === 'manual' && toll.amount !== null)) return toll;
+          return { ...toll, amount: typeof found.amount === 'number' && Number.isFinite(found.amount) && found.amount >= 0 ? found.amount : null,
+            source: found.source === 'official' ? 'official' : 'pending', sourceUrl: found.sourceUrl, sourcePage: found.sourcePage,
+            category: found.category, checkedAt: found.checkedAt, lookupMessage: found.lookupMessage };
+        }) });
+        setOfficialStatus('Consulta terminada. Las tarifas verificadas tienen enlace a la publicación; el resto queda pendiente.');
+      } catch (error) {
+        if (active) setOfficialStatus(error instanceof Error ? error.message : 'No se pudo consultar las publicaciones.');
+      }
+    }, 800);
+    return () => { active = false; controller.abort(); window.clearTimeout(timer); };
+  }, [officialLookupKey, officialRetry]);
 
   const updateDraft = <K extends keyof TransportQuoteDraft>(field: K, value: TransportQuoteDraft[K]) => {
     onDraftChange({ ...draft, [field]: value });
@@ -680,22 +726,38 @@ export function CotizadorHome({
                   <option value="">Seleccionar</option><option value="tag">TelePASE</option><option value="cash">Efectivo</option>
                 </select>
               </label>
-              <button className="ghost-button" type="button" onClick={() => setRouteRetry(value => value + 1)}>Consultar peajes</button>
+              <button className="ghost-button" type="button" onClick={() => setRouteRetry(value => value + 1)}>Detectar estaciones</button>
+              <button className="ghost-button" type="button" onClick={() => setOfficialRetry(value => value + 1)}>Buscar tarifas oficiales</button>
               <button className="ghost-button" type="button" onClick={() => onDraftChange({ ...draft,
                 tolls: [...draft.tolls, { id: 'manual:' + crypto.randomUUID(), name: '', locality: '', road: '', province: '', amount: null, source: 'manual' }],
                 tollRouteKey: routeKey, tollListStatus: 'pending'
               })}>Agregar peaje</button>
             </div>
             {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Consultá la ruta o cargá los peajes manualmente.' : 'Recorrido confirmado sin peajes.'}</p>}
+            <p className="muted-copy">Búsqueda en publicaciones de AUBASA y AUSOL. Elegí concesionaria, sentido y horario de cada pasada. Otras estaciones quedan para carga manual.</p>
+            <p className="toll-source" role="status">{officialStatus}</p>
             <div className="toll-list">
               {draft.tolls.map((toll, index) => (
                 <div className="toll-card" key={toll.id}>
-                  <div className="toll-card-heading"><strong>Paso {index + 1}</strong><span>{toll.source === 'automatic' ? 'Tarifa estimada · 6 ejes' : toll.amount === null ? 'Importe pendiente' : 'Importe manual'}</span></div>
+                  <div className="toll-card-heading"><strong>Paso {index + 1}</strong><span>{toll.source === 'official' ? 'Publicación oficial · 6 ejes' : toll.source === 'automatic' ? 'Tarifa estimada · 6 ejes' : toll.amount === null ? 'Importe pendiente' : 'Importe manual'}</span></div>
                   <div className="form-grid">
-                    <label>Nombre del peaje<input aria-label={'Nombre del peaje ' + (index + 1)} value={toll.name} placeholder="Completar nombre" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, name: event.target.value, source: 'manual' } : item))} /></label>
-                    <label>Localidad<input aria-label={'Localidad del peaje ' + (index + 1)} value={toll.locality} placeholder="Localidad no informada" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, locality: event.target.value, source: 'manual' } : item))} /></label>
+                    <label>Nombre del peaje<input aria-label={'Nombre del peaje ' + (index + 1)} value={toll.name} placeholder="Completar nombre" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, name: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))} /></label>
+                    <label>Localidad<input aria-label={'Localidad del peaje ' + (index + 1)} value={toll.locality} placeholder="Localidad no informada" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, locality: event.target.value } : item))} /></label>
                     <label>Importe (ARS)<input aria-label={'Importe del peaje ' + (index + 1)} type="number" min="0" step="0.01" placeholder="Completar tarifa" value={toll.amount ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, amount: event.target.value === '' ? null : Math.max(0, Number(event.target.value)), source: 'manual' } : item))} /></label>
                   </div>
+                  <div className="form-grid">
+                    <label>Concesionaria<select aria-label={'Concesionaria del peaje ' + (index + 1)} value={toll.operator ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, operator: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))}>
+                      <option value="">Seleccionar</option><option value="aubasa">AUBASA</option><option value="ausol">AUSOL · Acceso Norte</option><option value="other">Otra concesionaria</option>
+                    </select></label>
+                    <label>Horario del paso<select aria-label={'Horario del peaje ' + (index + 1)} value={toll.period ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, period: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))}>
+                      <option value="">Confirmar</option><option value="normal">No pico</option><option value="peak">Pico</option>
+                    </select></label>
+                    {toll.operator === 'aubasa' && <label>Sentido del paso<select aria-label={'Sentido del peaje ' + (index + 1)} value={toll.direction ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, direction: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))}>
+                      <option value="">Confirmar</option><option value="la-plata">CABA → La Plata</option><option value="caba">La Plata → CABA</option><option value="both">Ruta 2 / 11 / 74</option>
+                    </select></label>}
+                  </div>
+                  <p className="toll-source">{toll.lookupMessage}</p>
+                  {toll.sourceUrl && <p className="toll-source"><a href={toll.sourceUrl} target="_blank" rel="noreferrer">Ver publicación oficial</a> · Categoría {toll.category} · Consultada {toll.checkedAt ? new Date(toll.checkedAt).toLocaleString('es-AR') : ''}{toll.source === 'manual' ? ' · Importe corregido manualmente' : ''}</p>}
                   <div className="toll-card-heading"><small>{[toll.road, toll.province].filter(Boolean).join(' · ')}</small>
                     {toll.id.startsWith('manual:') && <button className="ghost-button" type="button" aria-label={'Quitar peaje ' + (index + 1)} onClick={() => onDraftChange({ ...draft, tolls: draft.tolls.filter(item => item.id !== toll.id), tollListStatus: 'pending' })}>Quitar</button>}
                   </div>

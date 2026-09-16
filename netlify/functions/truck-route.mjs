@@ -27,8 +27,8 @@ export function parseRoute(data, payment, vehicleType) {
   if (route.summary.hasTolls !== false && (!Array.isArray(route.tolls) || !route.tolls.length)) throw new Error('El proveedor no devolvió el detalle de estaciones.');
   const entries = route.summary.hasTolls === false ? [] : route.tolls.flat();
   const tolls = entries.map((toll, index) => {
-    const raw = toll[payment === 'tag' ? 'tagCost' : 'cashCost'];
-    const amount = toll.currency === 'ARS' && typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : null;
+    // Route provider identifies crossings only. Prices are sourced from official publications.
+    const amount = null;
     return {
       id: String(toll.id ?? toll.name ?? 'peaje') + ':' + index,
       name: typeof toll.name === 'string' ? toll.name : '',

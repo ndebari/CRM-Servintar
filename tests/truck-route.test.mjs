@@ -17,8 +17,8 @@ test('every crossing has a unique row even on return through same toll', () => {
  const route = parseRoute(result(), 'tag', '6AxlesTruck');
  assert.equal(route.tolls.length, 2); assert.notEqual(route.tolls[0].id, route.tolls[1].id);
  assert.equal(route.tolls[0].name, 'Estación prueba'); assert.equal(route.tolls[0].locality, 'Localidad prueba');
- assert.equal(route.tolls[0].amount, 100); assert.equal(route.tolls[1].amount, null);
- assert.equal(parseRoute(result(), 'cash', '6AxlesTruck').tolls[1].amount, 200);
+ assert.equal(route.tolls[0].amount, null); assert.equal(route.tolls[1].amount, null);
+ assert.equal(parseRoute(result(), 'cash', '6AxlesTruck').tolls[1].amount, null);
 });
 test('missing prices, other per-station currency, and missing locality remain editable', () => {
  for (const amount of [false, null, -1, '100']) {

@@ -51,3 +51,13 @@ Con Vite solo, las funciones de Netlify no se ejecutan: se permite carga manual 
 Pruebas de integración del proveedor (sin consumo de API): node --test tests/*.test.mjs
 
 Documentación del proveedor: https://cdn.tollguru.com/github/toll-api-docs/static-america.html
+
+## Búsqueda de tarifas en publicaciones oficiales
+
+La función official-tolls consulta directamente las publicaciones públicas de AUBASA y AUSOL, sin credenciales de TollGuru ni servicios de búsqueda pagos. La selección utiliza concesionaria, nombre exacto de estación, sentido, pago y horario pico/no pico para seis ejes. El navegador muestra el documento original, categoría y hora de consulta. Los valores manuales nunca se reemplazan.
+
+Cobertura inicial: cuadros publicados de AUBASA (Buenos Aires–La Plata y rutas 2/11/74) y AUSOL Acceso Norte. Otras concesionarias o estaciones no reconocidas quedan pendientes, sin inventar importes. No se trata de un buscador universal ni de OCR automático: las celdas de seis ejes fueron revisadas visualmente el 16/09/2026 y se guardan con la huella SHA-256 de la publicación. Antes de usarlas, el servidor verifica que la página oficial siga enlazando ese documento y que los bytes coincidan. Si cambia el cuadro o no puede consultarse, devuelve importe vacío; un mantenedor debe revisar la nueva publicación antes de agregar su huella y valores. Nunca se usan como respaldo los precios ocultos del CMS ni tarifas antiguas ante un fallo.
+
+Esto resuelve la búsqueda de importes de las estaciones ya identificadas o cargadas. Detectar estaciones sobre una ruta apta para camiones sigue siendo independiente y requiere el proveedor de rutas configurado. El proveedor de rutas ya no aporta los importes: estos se consultan en las publicaciones oficiales. No se deduce que una ruta sea apta para tránsito pesado a partir de un tarifario.
+
+Vite incluye un middleware local para probar official-tolls. En Netlify la misma función se despliega junto con la aplicación. Los datos de respaldo están en netlify/lib/verified-tariffs.json y la validación en netlify/lib/official-publications.mjs. No se aceptan URLs arbitrarias del cliente.

@@ -1,0 +1,264 @@
+[
+  {
+    "operator": "aubasa",
+    "stations": [
+      "dock sud",
+      "hudson",
+      "gutierrez"
+    ],
+    "direction": "la-plata",
+    "category": "6 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-Dock-Sud-Hudson-Gutierrez-ascendente.jpg",
+    "sha256": "b34e7e49dc5acdb77ee861b2ff4f696dd7113ae6745c96768afc893c708ea746",
+    "rates": {
+      "tag": {
+        "normal": 11975.15,
+        "peak": 14968.96
+      },
+      "cash": {
+        "normal": 12000,
+        "peak": 15000
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "aubasa",
+    "stations": [
+      "bernal",
+      "quilmes",
+      "berazategui"
+    ],
+    "direction": "la-plata",
+    "category": "6 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-Bernal-Quilmes-Berazategui-ascendente.jpg",
+    "sha256": "10f584131d0cb916a35e28c5de3174d6103d10741423f6adbd1554d282b641c0",
+    "rates": {
+      "tag": {
+        "normal": 8382.61,
+        "peak": 10478.24
+      },
+      "cash": {
+        "normal": 8400,
+        "peak": 10500
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "aubasa",
+    "stations": [
+      "villa elisa"
+    ],
+    "direction": "la-plata",
+    "category": "6 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-VillaElisa-ascendente.jpg",
+    "sha256": "bb982df823312e1c75796156cd277e152572ba4fb3578c7a7599010bc055d783",
+    "rates": {
+      "tag": {
+        "normal": 6272.71,
+        "peak": 7840.89
+      },
+      "cash": {
+        "normal": 6300,
+        "peak": 7900
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "aubasa",
+    "stations": [
+      "hudson"
+    ],
+    "direction": "caba",
+    "category": "6 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-Hudson-descendente.jpg",
+    "sha256": "0add2afdad79636f790b58b8a6080a47426ed61b022a03ec2cb5210ebbd08137",
+    "rates": {
+      "tag": {
+        "normal": 23950.33,
+        "peak": 29937.9
+      },
+      "cash": {
+        "normal": 24000,
+        "peak": 30000
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "aubasa",
+    "stations": [
+      "bernal",
+      "quilmes",
+      "berazategui"
+    ],
+    "direction": "caba",
+    "category": "6 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-Bernal-Quilmes-Berazategui-descendente.jpg",
+    "sha256": "03a8bea1105fec2492ebec514e057a18002be80f6d9809253ed60719f382a3f1",
+    "rates": {
+      "tag": {
+        "normal": 20357.78,
+        "peak": 25447.22
+      },
+      "cash": {
+        "normal": 20400,
+        "peak": 25500
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "aubasa",
+    "stations": [
+      "dock sud",
+      "acceso sudeste",
+      "gutierrez"
+    ],
+    "direction": "caba",
+    "category": "6 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-Dock-Sud-A.-Sudeste-Gutierrez-descendente.jpg",
+    "sha256": "52298e78b46304b4ff01a36557690a7e75355df59ea314023edb79a3563a1402",
+    "rates": {
+      "tag": {
+        "normal": 11975.15,
+        "peak": 14968.96
+      },
+      "cash": {
+        "normal": 12000,
+        "peak": 15000
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "aubasa",
+    "stations": [
+      "samborombon",
+      "maipu"
+    ],
+    "direction": "both",
+    "category": "5 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-Samborombón-Maipú.jpg",
+    "sha256": "b52f00a1efa3270379ae255e5356d07b2914090ea8d8f163a902a68002be3acd",
+    "rates": {
+      "tag": {
+        "normal": 31427.15,
+        "peak": 31427.15
+      },
+      "cash": {
+        "normal": 31500,
+        "peak": 31500
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "aubasa",
+    "stations": [
+      "la huella"
+    ],
+    "direction": "both",
+    "category": "5 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-La-Huella.jpg",
+    "sha256": "6b92c7617ea3f962c5aa2e4fbaffcf4a1355785380f7aad590a7f7bf44f8cdcc",
+    "rates": {
+      "tag": {
+        "normal": 31427.15,
+        "peak": 31427.15
+      },
+      "cash": {
+        "normal": 31500,
+        "peak": 31500
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "aubasa",
+    "stations": [
+      "general madariaga",
+      "madariaga"
+    ],
+    "direction": "both",
+    "category": "5 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-Madariaga.jpg",
+    "sha256": "dcced3418930d6842beab7360faeef5f9be8fca4f285c307ee4f3e7dc0c96105",
+    "rates": {
+      "tag": {
+        "normal": 13199.39,
+        "peak": 13199.39
+      },
+      "cash": {
+        "normal": 13200,
+        "peak": 13200
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "aubasa",
+    "stations": [
+      "mar chiquita"
+    ],
+    "direction": "both",
+    "category": "5 (5 y 6 ejes)",
+    "page": "https://aubasa.com.ar/tarifas-aubasa/",
+    "document": "https://aubasa.com.ar/wp-content/uploads/2026/07/Tarifa-AUBASA-peaje-Mar-Chiquita.jpg",
+    "sha256": "4310fc77853435a05a588eb2d0b158bf96086053704f67db10c9acf6a83f4edf",
+    "rates": {
+      "tag": {
+        "normal": 14456.48,
+        "peak": 14456.48
+      },
+      "cash": {
+        "normal": 14500,
+        "peak": 14500
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "ausol",
+    "stations": [
+      "debenedetti",
+      "marquez",
+      "tigre",
+      "capitan juan de san martin",
+      "camino real",
+      "buen ayre",
+      "ruta 202",
+      "belgrano",
+      "ruta 197",
+      "campana",
+      "pilar"
+    ],
+    "direction": "both",
+    "category": "6 (más de 4 y hasta 6 ejes)",
+    "page": "https://www.ausol.com.ar/tarifas",
+    "document": "https://back.ausol.com.ar/wp-content/uploads/2026/03/web_ausol_03_2026.jpg",
+    "sha256": "78a36f1c4e4bf6368af8358b508d5305207a22432102190019a4bbc542b8d756",
+    "rates": {
+      "tag": {
+        "normal": 3976.59,
+        "peak": 4771.95
+      },
+      "cash": {
+        "normal": 8000,
+        "peak": 9600
+      }
+    },
+    "reviewedOn": "2026-09-16"
+  }
+]
