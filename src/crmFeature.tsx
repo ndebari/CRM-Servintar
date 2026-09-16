@@ -28,6 +28,7 @@ declare global {
               result: {
                 routes?: {
                   legs?: {
+                    steps?: { path?: { lat: () => number; lng: () => number }[] }[];
                     distance?: {
                       value: number;
                     };
@@ -140,7 +141,7 @@ export type QuoteAdditionalSelection = {
 export type RouteToll = {
   id: string; name: string; locality: string; road: string; province: string;
   amount: number | null; source: 'pending' | 'automatic' | 'official' | 'manual';
-  operator?: string; period?: string; direction?: string;
+  operator?: string; period?: string; direction?: string; stationSourceUrl?: string;
   sourceUrl?: string; sourcePage?: string; category?: string; checkedAt?: string; lookupMessage?: string;
 };
 
@@ -394,11 +395,11 @@ export function mergeRouteTolls(incoming: RouteToll[], previous: RouteToll[]) {
 }
 
 export function getTruckRouteKey(draft: TransportQuoteDraft) {
-  return JSON.stringify([getRouteStops(draft), draft.truck, draft.tollPayment]);
+  return JSON.stringify(getRouteStops(draft));
 }
 
-export function calculateRouteDistance(stops: string[]) {
-  return new Promise<number>((resolve, reject) => {
+export function calculateGoogleRoute(stops: string[]) {
+  return new Promise<{ distanceKm: number; path: number[][] }>((resolve, reject) => {
     if (!window.google?.maps?.DirectionsService) {
       reject(new Error('Google Directions is not available'));
       return;
@@ -424,10 +425,15 @@ export function calculateRouteDistance(stops: string[]) {
 
         if (result.routes[0].legs.length !== stops.length - 1 || result.routes[0].legs.some(leg => !Number.isFinite(leg.distance?.value) || (leg.distance?.value ?? -1) < 0)) { reject(new Error('Incomplete route distance')); return; }
         const meters = result.routes[0].legs.reduce((total, leg) => total + (leg.distance?.value ?? 0), 0);
-        resolve(Math.round(meters / 1000));
+        const path = result.routes[0].legs.flatMap(leg => (leg.steps ?? []).flatMap(step => (step.path ?? []).map(point => [point.lat(), point.lng()])));
+        resolve({ distanceKm: Math.round(meters / 1000), path });
       }
     );
   });
+}
+
+export async function calculateRouteDistance(stops: string[]) {
+  return (await calculateGoogleRoute(stops)).distanceKm;
 }
 
 export function CotizadorHome({
@@ -470,105 +476,62 @@ export function CotizadorHome({
   latestDraft.current = draft;
   latestOnChange.current = onDraftChange;
   const [routeRetry, setRouteRetry] = useState(0);
-  const [detectorAvailable, setDetectorAvailable] = useState<boolean | null>(null);
-  useEffect(() => {
-    let active = true;
-    fetch('/.netlify/functions/truck-route').then(response => response.json()).then(result => {
-      if (active) setDetectorAvailable(result.available === true);
-    }).catch(() => { if (active) setDetectorAvailable(false); });
-    return () => { active = false; };
-  }, []);
   const manualDistanceVersion = useRef(0);
-  const verifiedTruckDistance = useRef('');
   const distanceKey = JSON.stringify(routeStops);
   const previousDistanceKey = useRef(distanceKey);
   const [distanceStatus, setDistanceStatus] = useState('');
+  const googleRoute = useRef<{ key: string; distanceKm: number; path: number[][] } | null>(null);
 
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    const current = latestDraft.current;
-    if (current.tollRouteKey !== routeKey) {
-      latestDraft.current = { ...current, tolls: [], tollListStatus: 'pending', tollRouteKey: routeKey };
-      latestOnChange.current(latestDraft.current);
-    }
-    if (detectorAvailable !== true) {
-      setRouteStatus(detectorAvailable === null ? 'Comprobando disponibilidad del detector…' : 'Detector no disponible: falta activar la conexión con TollGuru. Agregá las estaciones manualmente para buscar sus tarifas oficiales.');
-      return;
-    }
-    if (current.tollRouteKey === routeKey && current.tollListStatus !== 'pending' && routeRetry === 0) {
-      setRouteStatus('Listado conservado para este recorrido. Podés editar cada tarifa o volver a consultar.');
-      return;
-    }
-    if (routeStops.some(stop => !stop) || routeStops.length < 2) {
-      setRouteStatus('Completá todos los puntos del recorrido. Los peajes incluyen la vuelta si seleccionás Roundtrip.');
-      return;
-    }
-    if (!current.truck.tractorAxles || !current.truck.height || !current.truck.weight || !current.truck.length || !current.tollPayment) {
-      setRouteStatus('Completá la configuración del camión y la forma de pago para consultar automáticamente. También podés cargar kilómetros y peajes manualmente.');
-      return;
-    }
-    const distanceVersion = manualDistanceVersion.current;
-    const timeoutId = window.setTimeout(async () => {
-      setRouteStatus('Consultando recorrido de tránsito pesado y peajes para el camión…');
-      try {
-        const response = await fetch('/.netlify/functions/truck-route', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-          body: JSON.stringify({ stops: routeStops, truck: current.truck, payment: current.tollPayment })
-        });
-        if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Cálculo automático pendiente de activar. Podés cargar kilómetros y peajes manualmente; la ruta no está verificada.');
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'No se pudo consultar el recorrido.');
-        if (!Number.isFinite(result.distanceKm) || result.distanceKm <= 0 || result.currency !== 'ARS' || !Array.isArray(result.tolls) || result.tolls.some((toll: RouteToll) => typeof toll.id !== 'string' || typeof toll.name !== 'string' || typeof toll.locality !== 'string' || (toll.amount !== null && (typeof toll.amount !== 'number' || !Number.isFinite(toll.amount) || toll.amount < 0)))) throw new Error('El proveedor devolvió un cálculo incompleto. Revisá los importes manualmente.');
-        if (!active || getTruckRouteKey(latestDraft.current) !== routeKey) return;
-        const latest = latestDraft.current;
-        const mergedTolls = mergeRouteTolls(result.tolls, latest.tollRouteKey === routeKey ? latest.tolls : []);
-        const keepDistance = distanceVersion !== manualDistanceVersion.current;
-        verifiedTruckDistance.current = distanceKey;
-        if (!keepDistance) setDistanceStatus('Kilómetros calculados para camión con HERE.');
-        latestOnChange.current({ ...latest,
-          distanceKm: keepDistance ? latest.distanceKm : result.distanceKm,
-          requiredDays: keepDistance ? latest.requiredDays : calculateRequiredDays(result.distanceKm),
-          tolls: mergedTolls,
-          tollListStatus: 'detected',
-          tollRouteKey: routeKey
-        });
-        setRouteStatus(keepDistance ? 'Listado actualizado. Conservamos tus kilómetros manuales: verificá que correspondan al mismo recorrido.' : 'Peajes detectados en orden de paso para 6 ejes. Completá las localidades o tarifas que el proveedor no haya informado. Tus correcciones manuales se conservan.');
-      } catch (error) {
-        if (active && getTruckRouteKey(latestDraft.current) === routeKey) setRouteStatus(error instanceof Error ? error.message : 'No se pudo consultar el recorrido de camión.');
-      }
-    }, 900);
-    return () => { active = false; controller.abort(); window.clearTimeout(timeoutId); };
-  }, [routeKey, routeRetry, detectorAvailable]);
-
-  useEffect(() => {
-    let active = true;
     const version = manualDistanceVersion.current;
-    if (previousDistanceKey.current !== distanceKey) {
-      previousDistanceKey.current = distanceKey;
-      verifiedTruckDistance.current = '';
-      latestDraft.current = { ...latestDraft.current, distanceKm: 0, requiredDays: 1 };
+    const changed = previousDistanceKey.current !== distanceKey;
+    previousDistanceKey.current = distanceKey;
+    if (changed || latestDraft.current.tollRouteKey !== routeKey) {
+      latestDraft.current = { ...latestDraft.current, ...(changed ? { distanceKm: 0, requiredDays: 1 } : {}), tolls: [], tollListStatus: 'pending', tollRouteKey: routeKey };
       latestOnChange.current(latestDraft.current);
     }
     if (routeStops.length < 2 || routeStops.some(stop => !stop)) {
       setDistanceStatus('Completá los puntos del recorrido para calcular kilómetros con Google.');
+      setRouteStatus('Completá el recorrido para estimar estaciones sobre la ruta de Google.');
       return;
     }
-    setDistanceStatus('Calculando kilómetros con Google…');
     const timeout = window.setTimeout(async () => {
       try {
-        await loadGooglePlaces();
-        const distanceKm = await calculateRouteDistance(routeStops);
-        if (!active || JSON.stringify(getRouteStops(latestDraft.current)) !== distanceKey || verifiedTruckDistance.current === distanceKey) return;
-        if (version !== manualDistanceVersion.current) { setDistanceStatus('Kilómetros editados manualmente.'); return; }
-        latestOnChange.current({ ...latestDraft.current, distanceKm, requiredDays: calculateRequiredDays(distanceKm) });
-        setDistanceStatus('Kilómetros estimados con Google · incluye las paradas y la vuelta seleccionada. Ruta sin verificar para tránsito pesado.');
-      } catch {
-        if (active && verifiedTruckDistance.current !== distanceKey) setDistanceStatus('No se pudo calcular con Google. Podés ingresar los kilómetros manualmente.');
+        setDistanceStatus('Calculando kilómetros con Google…');
+        const route = googleRoute.current?.key === distanceKey ? googleRoute.current : await (async () => {
+          await loadGooglePlaces();
+          return { ...await calculateGoogleRoute(routeStops), key: distanceKey };
+        })();
+        if (!active || JSON.stringify(getRouteStops(latestDraft.current)) !== distanceKey) return;
+        googleRoute.current = route;
+        if (version === manualDistanceVersion.current) {
+          latestDraft.current = { ...latestDraft.current, distanceKm: route.distanceKm, requiredDays: calculateRequiredDays(route.distanceKm) };
+          latestOnChange.current(latestDraft.current);
+          setDistanceStatus('Kilómetros estimados con Google · incluye paradas y vuelta. Ruta sin verificar para tránsito pesado.');
+        } else setDistanceStatus('Kilómetros editados manualmente. Peajes estimados sobre la ruta de Google.');
+        if (route.path.length < 2) throw new Error('Google no devolvió el trazado necesario para estimar peajes.');
+        setRouteStatus('Estimando estaciones sobre el trazado de Google…');
+        const response = await fetch('/.netlify/functions/route-tolls', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+          body: JSON.stringify({ path: route.path })
+        });
+        const result = await response.json();
+        if (!response.ok || !Array.isArray(result.tolls)) throw new Error(result.error || 'No se pudo estimar el listado de peajes.');
+        if (!active || JSON.stringify(getRouteStops(latestDraft.current)) !== distanceKey) return;
+        latestDraft.current = { ...latestDraft.current, tolls: mergeRouteTolls(result.tolls, latestDraft.current.tolls), tollListStatus: 'pending', tollRouteKey: getTruckRouteKey(latestDraft.current) };
+        latestOnChange.current(latestDraft.current);
+        setRouteStatus(result.tolls.length + ' paso(s) de peaje estimado(s) sobre la ruta de Google. Revisá nombres, localidades y posibles faltantes antes de confirmar. Mapa: OpenStreetMap, ' + result.catalogDate + '.');
+      } catch (error) {
+        if (active) {
+          if (googleRoute.current?.key !== distanceKey) setDistanceStatus('No se pudo calcular con Google. Podés cargar los kilómetros manualmente.');
+          setRouteStatus(error instanceof Error ? error.message : 'No se pudo estimar peajes. Reintentá o agregalos manualmente.');
+        }
       }
     }, 700);
-    return () => { active = false; window.clearTimeout(timeout); };
-  }, [distanceKey]);
+    return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
+  }, [distanceKey, routeRetry]);
 
   const [officialRetry, setOfficialRetry] = useState(0);
   const [officialStatus, setOfficialStatus] = useState('');
@@ -838,7 +801,7 @@ export function CotizadorHome({
                   <option value="">Seleccionar</option><option value="tag">TelePASE</option><option value="cash">Efectivo</option>
                 </select>
               </label>
-              <button className="ghost-button" type="button" disabled={detectorAvailable !== true} onClick={() => setRouteRetry(value => value + 1)}>{detectorAvailable === true ? "Detectar estaciones" : "Detector sin conexión"}</button>
+              <button className="ghost-button" type="button" onClick={() => setRouteRetry(value => value + 1)}>Estimar estaciones con Google</button>
               <button className="ghost-button" type="button" onClick={() => setOfficialRetry(value => value + 1)}>Buscar tarifas oficiales</button>
               <button className="ghost-button" type="button" onClick={() => onDraftChange({ ...draft,
                 tolls: [...draft.tolls, { id: 'manual:' + crypto.randomUUID(), name: '', locality: '', road: '', province: '', amount: null, source: 'manual' }],
@@ -847,6 +810,7 @@ export function CotizadorHome({
             </div>
             <p className="muted-copy route-status" role="status">{routeStatus}</p>
             {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Consultá la ruta o cargá los peajes manualmente.' : 'Recorrido confirmado sin peajes.'}</p>}
+            <p className="muted-copy"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Estaciones: © OpenStreetMap contributors (ODbL)</a>. Detección aproximada, editable.</p>
             <p className="muted-copy">Búsqueda en publicaciones de AUBASA y AUSOL. La concesionaria se reconoce por el nombre cuando es posible. Completá pago, sentido y horario de cada pasada. Otras estaciones quedan para carga manual.</p>
             <p className="toll-source" role="status">{officialStatus}</p>
             <div className="toll-list">
@@ -869,15 +833,16 @@ export function CotizadorHome({
                       <option value="">Confirmar</option><option value="la-plata">CABA → La Plata</option><option value="caba">La Plata → CABA</option><option value="both">Ruta 2 / 11 / 74</option>
                     </select></label>}
                   </div>
+                  {toll.stationSourceUrl && <p className="toll-source"><a href={toll.stationSourceUrl} target="_blank" rel="noreferrer">Ver estación en el mapa</a> · Localidad aproximada: revisar</p>}
                   <p className="toll-source">{toll.lookupMessage}</p>
                   {toll.sourceUrl && <p className="toll-source"><a href={toll.sourceUrl} target="_blank" rel="noreferrer">Ver publicación oficial</a> · Categoría {toll.category} · Consultada {toll.checkedAt ? new Date(toll.checkedAt).toLocaleString('es-AR') : ''}{toll.source === 'manual' ? ' · Importe corregido manualmente' : ''}</p>}
                   <div className="toll-card-heading"><small>{[toll.road, toll.province].filter(Boolean).join(' · ')}</small>
-                    {toll.id.startsWith('manual:') && <button className="ghost-button" type="button" aria-label={'Quitar peaje ' + (index + 1)} onClick={() => onDraftChange({ ...draft, tolls: draft.tolls.filter(item => item.id !== toll.id), tollListStatus: 'pending' })}>Quitar</button>}
+                    {<button className="ghost-button" type="button" aria-label={'Quitar peaje ' + (index + 1)} onClick={() => onDraftChange({ ...draft, tolls: draft.tolls.filter(item => item.id !== toll.id), tollListStatus: 'pending' })}>Quitar</button>}
                   </div>
                 </div>
               ))}
             </div>
-            {draft.tollListStatus !== 'detected' && <label className="check-inline toll-confirm"><input type="checkbox" checked={draft.tollListStatus === 'manual'} onChange={event => updateDraft('tollListStatus', event.target.checked ? 'manual' : 'pending')} />{draft.tolls.length ? 'Confirmo que cargué todos los peajes del recorrido' : 'Confirmo que este recorrido no tiene peajes'}</label>}
+            {draft.tollListStatus !== 'detected' && <label className="check-inline toll-confirm"><input type="checkbox" checked={draft.tollListStatus === 'manual'} onChange={event => updateDraft('tollListStatus', event.target.checked ? 'manual' : 'pending')} />{draft.tolls.length ? 'Confirmo que revisé todos los peajes estimados del recorrido' : 'Confirmo que este recorrido no tiene peajes'}</label>}
             <div className="toll-total" aria-live="polite"><span>{tollReady ? 'Total peajes' : 'Subtotal peajes cargados'}</span><strong>{currency.format(tollSummary.total)}</strong></div>
             {!tollReady && <p className="toll-source">{tollSummary.pending ? 'Falta completar ' + tollSummary.pending + ' peaje(s). La tarifa final se habilita cuando todos estén completos.' : 'Falta confirmar el listado del recorrido.'}</p>}
             <details className="truck-profile" open={!draft.truck.height || !draft.truck.weight || !draft.truck.length}>

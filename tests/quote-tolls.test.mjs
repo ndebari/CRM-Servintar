@@ -27,12 +27,12 @@ test('unknown or outdated tolls cannot produce a quote', () => {
   const changed = draftWithTolls(12000); changed.isRoundTrip = !changed.isRoundTrip;
   assert.throws(() => buildPreparedQuote(changed, [], { perDay: 5000, perKm: 100 }));
 });
-test('confirmed zero is valid and changing vehicle/payment invalidates the quote', () => {
+test('confirmed zero is valid and payment or dimensions do not change the Google route', () => {
   assert.equal(buildPreparedQuote(draftWithTolls(0), [], { perDay: 5000, perKm: 100 }).amount, 19875);
   const changed = draftWithTolls(100); changed.truck = { ...changed.truck, tractorAxles: 2 };
-  assert.throws(() => buildPreparedQuote(changed, [], { perDay: 5000, perKm: 100 }));
+  assert.equal(getTruckRouteKey(changed), changed.tollRouteKey);
   const payment = draftWithTolls(100); payment.tollPayment = 'tag';
-  assert.throws(() => buildPreparedQuote(payment, [], { perDay: 5000, perKm: 100 }));
+  assert.equal(getTruckRouteKey(payment), payment.tollRouteKey);
 });
 
 test('partial sum includes priced stations but prevents final quote', () => {

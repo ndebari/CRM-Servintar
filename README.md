@@ -61,3 +61,10 @@ Cobertura inicial: cuadros publicados de AUBASA (Buenos Aires–La Plata y rutas
 Esto resuelve la búsqueda de importes de las estaciones ya identificadas o cargadas. Detectar estaciones sobre una ruta apta para camiones sigue siendo independiente y requiere el proveedor de rutas configurado. El proveedor de rutas ya no aporta los importes: estos se consultan en las publicaciones oficiales. No se deduce que una ruta sea apta para tránsito pesado a partir de un tarifario.
 
 Vite incluye un middleware local para probar official-tolls. En Netlify la misma función se despliega junto con la aplicación. Los datos de respaldo están en netlify/lib/verified-tariffs.json y la validación en netlify/lib/official-publications.mjs. No se aceptan URLs arbitrarias del cliente.
+
+
+## Estimación de peajes sobre Google Directions (16/09/2026)
+
+Este flujo reemplaza la integración anterior de TollGuru/HERE; ya no se consulta ni requiere su clave. La misma respuesta de Directions aporta kilómetros y la geometría detallada de cada paso. Se compara con un extracto de nodos OpenStreetMap (16/09/2026) en un margen de 65 m. Se agrupan cabinas cercanas y se conservan pasadas posteriores, incluida la vuelta. Es una estimación: puede incluir colectoras o no detectar estaciones faltantes; el usuario debe revisar y confirmar el listado. La localidad, cuando falta, es la población del mapa más cercana hasta 20 km; puede no ser la jurisdicción administrativa. No verifica restricciones de camiones.
+
+El catálogo es una instantánea, no una actualización automática: fuente OSM, licencia ODbL, copia descargable en `/toll-stations.json`. Incluye el rectángulo regional -55,-74,-21,-53, por lo que contiene puntos de países vecinos; solo se muestran los próximos a la ruta recibida. No se envía el recorrido a Overpass. La búsqueda oficial conserva la cobertura limitada AUBASA/AUSOL y deja otras tarifas pendientes.

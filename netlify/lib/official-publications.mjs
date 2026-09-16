@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import publications from './verified-tariffs.json' with { type: 'json' };
 
-export const normalizeStation = name => String(name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/^(estacion\s+(de\s+)?)?peaje\s+/, '').replace(/\s+/g, ' ').trim();
+export const normalizeStation = name => String(name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/^(?:estacion\s+(?:de\s+)?)?(?:peaje\s+)?/ , '').replace(/\s+/g, ' ').trim();
 const allowedHosts = new Set(['aubasa.com.ar', 'www.ausol.com.ar', 'back.ausol.com.ar']);
 
 // No arbitrary client URLs, redirect following, stale-price fallback or hidden CMS prices.
