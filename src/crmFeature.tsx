@@ -16,6 +16,34 @@ declare global {
   interface Window {
     google?: {
       maps?: {
+        DirectionsService: new () => {
+          route: (
+            request: {
+              destination: string;
+              origin: string;
+              travelMode: string;
+              waypoints?: { location: string; stopover: boolean }[];
+            },
+            callback: (
+              result: {
+                routes?: {
+                  legs?: {
+                    distance?: {
+                      value: number;
+                    };
+                  }[];
+                }[];
+              } | null,
+              status: string
+            ) => void
+          ) => void;
+        };
+        DirectionsStatus?: {
+          OK: string;
+        };
+        TravelMode?: {
+          DRIVING: string;
+        };
         places?: {
           Autocomplete: new (
             input: HTMLInputElement,
@@ -369,6 +397,39 @@ export function getTruckRouteKey(draft: TransportQuoteDraft) {
   return JSON.stringify([getRouteStops(draft), draft.truck, draft.tollPayment]);
 }
 
+export function calculateRouteDistance(stops: string[]) {
+  return new Promise<number>((resolve, reject) => {
+    if (!window.google?.maps?.DirectionsService) {
+      reject(new Error('Google Directions is not available'));
+      return;
+    }
+
+    const directionsService = new window.google.maps.DirectionsService();
+    const origin = stops[0];
+    const destination = stops[stops.length - 1];
+    const waypoints = stops.slice(1, -1).map((location) => ({ location, stopover: true }));
+
+    directionsService.route(
+      {
+        origin,
+        destination,
+        waypoints,
+        travelMode: window.google.maps.TravelMode?.DRIVING ?? 'DRIVING'
+      },
+      (result, status) => {
+        if (status !== (window.google?.maps?.DirectionsStatus?.OK ?? 'OK') || !result?.routes?.[0]?.legs) {
+          reject(new Error(`Directions failed with status ${status}`));
+          return;
+        }
+
+        if (result.routes[0].legs.length !== stops.length - 1 || result.routes[0].legs.some(leg => !Number.isFinite(leg.distance?.value) || (leg.distance?.value ?? -1) < 0)) { reject(new Error('Incomplete route distance')); return; }
+        const meters = result.routes[0].legs.reduce((total, leg) => total + (leg.distance?.value ?? 0), 0);
+        resolve(Math.round(meters / 1000));
+      }
+    );
+  });
+}
+
 export function CotizadorHome({
   additionalCatalog,
   clients,
@@ -410,13 +471,18 @@ export function CotizadorHome({
   latestOnChange.current = onDraftChange;
   const [routeRetry, setRouteRetry] = useState(0);
   const manualDistanceVersion = useRef(0);
+  const verifiedTruckDistance = useRef('');
+  const distanceKey = JSON.stringify(routeStops);
+  const previousDistanceKey = useRef(distanceKey);
+  const [distanceStatus, setDistanceStatus] = useState('');
 
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
     const current = latestDraft.current;
     if (current.tollRouteKey !== routeKey) {
-      latestOnChange.current({ ...current, distanceKm: 0, requiredDays: 1, tolls: [], tollListStatus: 'pending', tollRouteKey: routeKey });
+      latestDraft.current = { ...current, tolls: [], tollListStatus: 'pending', tollRouteKey: routeKey };
+      latestOnChange.current(latestDraft.current);
     }
     if (current.tollRouteKey === routeKey && current.tollListStatus !== 'pending' && routeRetry === 0) {
       setRouteStatus('Listado conservado para este recorrido. Podés editar cada tarifa o volver a consultar.');
@@ -446,6 +512,8 @@ export function CotizadorHome({
         const latest = latestDraft.current;
         const mergedTolls = mergeRouteTolls(result.tolls, latest.tollRouteKey === routeKey ? latest.tolls : []);
         const keepDistance = distanceVersion !== manualDistanceVersion.current;
+        verifiedTruckDistance.current = distanceKey;
+        if (!keepDistance) setDistanceStatus('Kilómetros calculados para camión con HERE.');
         latestOnChange.current({ ...latest,
           distanceKm: keepDistance ? latest.distanceKm : result.distanceKm,
           requiredDays: keepDistance ? latest.requiredDays : calculateRequiredDays(result.distanceKm),
@@ -460,6 +528,35 @@ export function CotizadorHome({
     }, 900);
     return () => { active = false; controller.abort(); window.clearTimeout(timeoutId); };
   }, [routeKey, routeRetry]);
+
+  useEffect(() => {
+    let active = true;
+    const version = manualDistanceVersion.current;
+    if (previousDistanceKey.current !== distanceKey) {
+      previousDistanceKey.current = distanceKey;
+      verifiedTruckDistance.current = '';
+      latestDraft.current = { ...latestDraft.current, distanceKm: 0, requiredDays: 1 };
+      latestOnChange.current(latestDraft.current);
+    }
+    if (routeStops.length < 2 || routeStops.some(stop => !stop)) {
+      setDistanceStatus('Completá los puntos del recorrido para calcular kilómetros con Google.');
+      return;
+    }
+    setDistanceStatus('Calculando kilómetros con Google…');
+    const timeout = window.setTimeout(async () => {
+      try {
+        await loadGooglePlaces();
+        const distanceKm = await calculateRouteDistance(routeStops);
+        if (!active || JSON.stringify(getRouteStops(latestDraft.current)) !== distanceKey || verifiedTruckDistance.current === distanceKey) return;
+        if (version !== manualDistanceVersion.current) { setDistanceStatus('Kilómetros editados manualmente.'); return; }
+        latestOnChange.current({ ...latestDraft.current, distanceKm, requiredDays: calculateRequiredDays(distanceKm) });
+        setDistanceStatus('Kilómetros estimados con Google · incluye las paradas y la vuelta seleccionada. Ruta sin verificar para tránsito pesado.');
+      } catch {
+        if (active && verifiedTruckDistance.current !== distanceKey) setDistanceStatus('No se pudo calcular con Google. Podés ingresar los kilómetros manualmente.');
+      }
+    }, 700);
+    return () => { active = false; window.clearTimeout(timeout); };
+  }, [distanceKey]);
 
   const [officialRetry, setOfficialRetry] = useState(0);
   const [officialStatus, setOfficialStatus] = useState('');
@@ -580,6 +677,7 @@ export function CotizadorHome({
         </div>
       </header>
 
+      <p className="muted-copy route-status" role="status">{distanceStatus}</p>
       <section className="metric-grid" aria-label="Resumen de cotizacion">
         <Metric label="Cliente" value={selectedClient?.alias || 'Sin cliente'} hint={selectedClient?.businessName || 'Crear o seleccionar cliente'} />
         <Metric label="Kilometros" value={`${draft.distanceKm.toLocaleString('es-AR')} km`} hint={draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'} />

@@ -47,7 +47,7 @@ export async function handler(event) {
   let input, request;
   try { input = JSON.parse(event.body ?? '{}'); request = buildRequest(input); }
   catch (error) { return reply(400, { error: error instanceof SyntaxError ? 'Solicitud inválida.' : error.message }); }
-  if (!process.env.TOLLGURU_API_KEY) return reply(503, { error: 'Cálculo automático de camiones pendiente de activar. Cargá kilómetros y peajes manualmente; la ruta no está verificada.' });
+  if (!process.env.TOLLGURU_API_KEY) return reply(503, { error: 'Detección de estaciones y ruta de camión pendiente de activar. Los kilómetros de Google son estimados; cargá el listado de peajes manualmente.' });
   try {
     const response = await fetch('https://apis.tollguru.com/toll/v2/origin-destination-waypoints', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.TOLLGURU_API_KEY },

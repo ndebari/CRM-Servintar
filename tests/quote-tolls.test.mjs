@@ -10,7 +10,7 @@ after(() => rm(temp, { recursive: true, force: true }));
 const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
 await writeFile(`${temp}/quote.mjs`, compiled.outputText);
-const { createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+const { calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
 
 function draftWithTolls(amount) {
   const draft = { ...createQuoteDraft('demo'), distanceKm: 100, requiredDays: 1, utilityPercent: 20, tolls: [{ id: 'a:0', name: 'Peaje prueba', locality: 'Localidad prueba', road: '', province: '', amount, source: 'manual' }], tollListStatus: 'manual', additionals: [{ id: '1', name: 'Demora', amount: 1000, discountPercent: 10 }] };
@@ -55,4 +55,26 @@ test('refresh preserves edits for each repeated station independently', () => {
   const incoming = [{ ...first, source: 'automatic', amount: 200 }, { ...first, id: 'a:1', source: 'automatic', amount: null }];
   const merged = mergeRouteTolls(incoming, [first]);
   assert.equal(merged.length, 2); assert.equal(merged[0].amount, 100); assert.equal(merged[1].amount, null);
+});
+
+
+test('Google distance includes every leg, including the selected return', async () => {
+  let request;
+  globalThis.window = { google: { maps: { DirectionsService: class { route(input, callback) {
+    request = input;
+    callback({ routes: [{ legs: [{ distance: { value: 12000 } }, { distance: { value: 23000 } }, { distance: { value: 34000 } }] }] }, 'OK');
+  } } } } };
+  assert.equal(await calculateRouteDistance(['Base', 'Retiro', 'Puerto', 'Base']), 69);
+  assert.deepEqual(request.waypoints, [{ location: 'Retiro', stopover: true }, { location: 'Puerto', stopover: true }]);
+  assert.equal(request.destination, 'Base');
+  assert.equal(request.travelMode, 'DRIVING');
+  delete globalThis.window;
+});
+
+test('Google errors and incomplete distances never become a zero kilometer quote', async () => {
+  for (const [result, status] of [[null, 'ZERO_RESULTS'], [{ routes: [{ legs: [{}] }] }, 'OK'], [{ routes: [{ legs: [] }] }, 'OK']]) {
+    globalThis.window = { google: { maps: { DirectionsService: class { route(input, callback) { callback(result, status); } } } } };
+    await assert.rejects(calculateRouteDistance(['Base', 'Puerto']));
+  }
+  delete globalThis.window;
 });
