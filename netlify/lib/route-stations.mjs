@@ -14,7 +14,7 @@ export function estimateCrossings(path, stations = catalog.stations) {
       const x = (station.lon - a[1]) * meters * scale, y = (station.lat - a[0]) * meters;
       const t = Math.max(0, Math.min(1, (x * dx + y * dy) / length ** 2));
       const distance = Math.hypot(x - t * dx, y - t * dy);
-      if (distance <= 65) hits.push({ station, at: traveled + t * length, distance, direction: dy < 0 ? 'la-plata' : 'caba' });
+      if (distance <= 18) hits.push({ station, at: traveled + t * length, distance, direction: dy < 0 ? 'la-plata' : 'caba' });
     }
     traveled += length;
   }
