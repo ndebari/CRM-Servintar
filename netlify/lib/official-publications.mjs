@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import publications from './verified-tariffs.json' with { type: 'json' };
 
-export const normalizeStation = name => String(name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/^(estacion\s+de\s+)?peaje\s+/, '').trim();
+export const normalizeStation = name => String(name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/^(estacion\s+(de\s+)?)?peaje\s+/, '').replace(/\s+/g, ' ').trim();
 const allowedHosts = new Set(['aubasa.com.ar', 'www.ausol.com.ar', 'back.ausol.com.ar']);
 
 // No arbitrary client URLs, redirect following, stale-price fallback or hidden CMS prices.
@@ -23,13 +23,16 @@ export async function readOfficial(url, fetcher = fetch) {
 }
 
 export function findPublication(toll, payment) {
-  if (!['tag', 'cash'].includes(payment)) return { reason: 'Seleccioná TelePASE o efectivo.' };
-  const matches = publications.filter(p => p.operator === toll.operator && (p.stations.includes('*') || p.stations.includes(normalizeStation(toll.name))));
-  if (!matches.length) return { reason: 'No hay una publicación verificada para esta concesionaria y estación. Cargá el importe manualmente.' };
+  const stationMatches = publications.filter(p => p.stations.includes(normalizeStation(toll.name)));
+  const operators = [...new Set(stationMatches.map(p => p.operator))];
+  const operator = toll.operator || (operators.length === 1 ? operators[0] : undefined);
+  if (!['tag', 'cash'].includes(payment)) return { operator, reason: 'Seleccioná TelePASE o efectivo en Pago de peajes.' };
+  const matches = stationMatches.filter(p => p.operator === operator);
+  if (!matches.length) return { operator, reason: 'No hay una publicación verificada para esta concesionaria y estación. Cargá el importe manualmente.' };
   const source = matches.find(p => p.direction === 'both' || p.direction === toll.direction);
-  if (!source) return { reason: 'Seleccioná el sentido de paso por esta estación.' };
-  if (source.rates[payment].normal !== source.rates[payment].peak && !['normal', 'peak'].includes(toll.period)) return { reason: 'Seleccioná horario pico o no pico para esta pasada.' };
-  return { source };
+  if (!source) return { operator, reason: 'Seleccioná el sentido de paso por esta estación.' };
+  if (source.rates[payment].normal !== source.rates[payment].peak && !['normal', 'peak'].includes(toll.period)) return { operator, reason: 'Seleccioná horario pico o no pico para esta pasada.' };
+  return { source, operator };
 }
 
 export async function searchOfficialTariffs(tolls, payment, fetcher = fetch) {
@@ -38,7 +41,8 @@ export async function searchOfficialTariffs(tolls, payment, fetcher = fetch) {
   const read = url => { if (!pending.has(url)) pending.set(url, readOfficial(url, fetcher)); return pending.get(url); };
   return Promise.all(tolls.map(async toll => {
     const base = { id: toll.id, amount: null, source: 'pending', checkedAt: new Date().toISOString() };
-    const { source, reason } = findPublication(toll, payment);
+    const { source, reason, operator } = findPublication(toll, payment);
+    base.operator = operator;
     if (!source) return { ...base, lookupMessage: reason };
     try {
       let published = false;

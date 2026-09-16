@@ -470,6 +470,14 @@ export function CotizadorHome({
   latestDraft.current = draft;
   latestOnChange.current = onDraftChange;
   const [routeRetry, setRouteRetry] = useState(0);
+  const [detectorAvailable, setDetectorAvailable] = useState<boolean | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetch('/.netlify/functions/truck-route').then(response => response.json()).then(result => {
+      if (active) setDetectorAvailable(result.available === true);
+    }).catch(() => { if (active) setDetectorAvailable(false); });
+    return () => { active = false; };
+  }, []);
   const manualDistanceVersion = useRef(0);
   const verifiedTruckDistance = useRef('');
   const distanceKey = JSON.stringify(routeStops);
@@ -483,6 +491,10 @@ export function CotizadorHome({
     if (current.tollRouteKey !== routeKey) {
       latestDraft.current = { ...current, tolls: [], tollListStatus: 'pending', tollRouteKey: routeKey };
       latestOnChange.current(latestDraft.current);
+    }
+    if (detectorAvailable !== true) {
+      setRouteStatus(detectorAvailable === null ? 'Comprobando disponibilidad del detector…' : 'Detector no disponible: falta activar la conexión con TollGuru. Agregá las estaciones manualmente para buscar sus tarifas oficiales.');
+      return;
     }
     if (current.tollRouteKey === routeKey && current.tollListStatus !== 'pending' && routeRetry === 0) {
       setRouteStatus('Listado conservado para este recorrido. Podés editar cada tarifa o volver a consultar.');
@@ -527,7 +539,7 @@ export function CotizadorHome({
       }
     }, 900);
     return () => { active = false; controller.abort(); window.clearTimeout(timeoutId); };
-  }, [routeKey, routeRetry]);
+  }, [routeKey, routeRetry, detectorAvailable]);
 
   useEffect(() => {
     let active = true;
@@ -564,7 +576,8 @@ export function CotizadorHome({
   useEffect(() => {
     const current = latestDraft.current;
     const candidates = current.tolls.filter(toll => toll.name.trim() && !(toll.source === 'manual' && toll.amount !== null));
-    if (!candidates.length) { setOfficialStatus('Los importes que ingresás manualmente se conservan.'); return; }
+    if (!current.tolls.length) { setOfficialStatus('Para buscar precios, primero agregá los peajes del recorrido. La búsqueda de tarifas no detecta estaciones.'); return; }
+    if (!candidates.length) { setOfficialStatus(current.tolls.some(toll => !toll.name.trim()) ? 'Completá el nombre del peaje para buscar su tarifa.' : 'Todos los importes son manuales. Vaciá el importe que quieras consultar; tus correcciones no se reemplazan.'); return; }
     let active = true;
     const controller = new AbortController();
     const stamp = (toll: RouteToll) => JSON.stringify([toll.name, toll.operator, toll.period, toll.direction]);
@@ -590,11 +603,12 @@ export function CotizadorHome({
           const sent = candidates.find(item => item.id === toll.id);
           const found = result.tolls.find((item: RouteToll) => item.id === toll.id);
           if (!sent || !found || stamp(sent) !== stamp(toll) || (toll.source === 'manual' && toll.amount !== null)) return toll;
-          return { ...toll, amount: typeof found.amount === 'number' && Number.isFinite(found.amount) && found.amount >= 0 ? found.amount : null,
+          return { ...toll, operator: toll.operator || found.operator, amount: typeof found.amount === 'number' && Number.isFinite(found.amount) && found.amount >= 0 ? found.amount : null,
             source: found.source === 'official' ? 'official' : 'pending', sourceUrl: found.sourceUrl, sourcePage: found.sourcePage,
             category: found.category, checkedAt: found.checkedAt, lookupMessage: found.lookupMessage };
         }) });
-        setOfficialStatus('Consulta terminada. Las tarifas verificadas tienen enlace a la publicación; el resto queda pendiente.');
+        const verified = result.tolls.filter((item: RouteToll) => item.source === 'official' && item.amount !== null).length;
+        setOfficialStatus(verified ? `${verified} tarifa(s) verificada(s). Revisá los campos pendientes debajo de cada peaje.` : 'No se obtuvo ningún importe. Revisá el motivo y los datos pendientes debajo de cada peaje.');
       } catch (error) {
         if (active) setOfficialStatus(error instanceof Error ? error.message : 'No se pudo consultar las publicaciones.');
       }
@@ -824,15 +838,16 @@ export function CotizadorHome({
                   <option value="">Seleccionar</option><option value="tag">TelePASE</option><option value="cash">Efectivo</option>
                 </select>
               </label>
-              <button className="ghost-button" type="button" onClick={() => setRouteRetry(value => value + 1)}>Detectar estaciones</button>
+              <button className="ghost-button" type="button" disabled={detectorAvailable !== true} onClick={() => setRouteRetry(value => value + 1)}>{detectorAvailable === true ? "Detectar estaciones" : "Detector sin conexión"}</button>
               <button className="ghost-button" type="button" onClick={() => setOfficialRetry(value => value + 1)}>Buscar tarifas oficiales</button>
               <button className="ghost-button" type="button" onClick={() => onDraftChange({ ...draft,
                 tolls: [...draft.tolls, { id: 'manual:' + crypto.randomUUID(), name: '', locality: '', road: '', province: '', amount: null, source: 'manual' }],
                 tollRouteKey: routeKey, tollListStatus: 'pending'
               })}>Agregar peaje</button>
             </div>
+            <p className="muted-copy route-status" role="status">{routeStatus}</p>
             {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Consultá la ruta o cargá los peajes manualmente.' : 'Recorrido confirmado sin peajes.'}</p>}
-            <p className="muted-copy">Búsqueda en publicaciones de AUBASA y AUSOL. Elegí concesionaria, sentido y horario de cada pasada. Otras estaciones quedan para carga manual.</p>
+            <p className="muted-copy">Búsqueda en publicaciones de AUBASA y AUSOL. La concesionaria se reconoce por el nombre cuando es posible. Completá pago, sentido y horario de cada pasada. Otras estaciones quedan para carga manual.</p>
             <p className="toll-source" role="status">{officialStatus}</p>
             <div className="toll-list">
               {draft.tolls.map((toll, index) => (
@@ -873,7 +888,6 @@ export function CotizadorHome({
                 ))}
               </div>
             </details>
-            <p className="muted-copy route-status" role="status">{routeStatus}</p>
           </section>
         </div>
 

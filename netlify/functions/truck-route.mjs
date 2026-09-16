@@ -42,6 +42,7 @@ export function parseRoute(data, payment, vehicleType) {
 }
 
 export async function handler(event) {
+  if (event.httpMethod === 'GET') return reply(200, { available: Boolean(process.env.TOLLGURU_API_KEY) });
   if (event.httpMethod !== 'POST') return reply(405, { error: 'Método no permitido.' });
   if ((event.body?.length ?? 0) > 8000) return reply(413, { error: 'Solicitud demasiado grande.' });
   let input, request;

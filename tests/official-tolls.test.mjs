@@ -38,3 +38,12 @@ test('errors stay editable; arbitrary URLs are never fetched', async () => {
  assert.equal((await searchOfficialTariffs([toll], 'tag', fail))[0].amount, null);
  await assert.rejects(() => readOfficial('http://127.0.0.1/private', fail));
 });
+
+
+test('recognizes concessionaire from station and preserves explicit choices', () => {
+ assert.equal(findPublication({name:'  Peaje   Campana ',period:'normal'},'tag').source.operator,'ausol');
+ assert.equal(findPublication({name:'Hudson'},'tag').operator,'aubasa');
+ assert.match(findPublication({name:'Hudson'},'tag').reason,/sentido/);
+ assert.equal(findPublication({name:'Campana',operator:'other',period:'normal'},'tag').source,undefined);
+ assert.equal(findPublication({name:'Estación desconocida',period:'normal'},'tag').source,undefined);
+});
