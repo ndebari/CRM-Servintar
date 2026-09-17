@@ -1125,6 +1125,7 @@ export function ClientsModule({
   const [lookupRequest, setLookupRequest] = useState(0);
   const [lookupStatus, setLookupStatus] = useState('');
   const [lookupSource, setLookupSource] = useState('');
+  const [lookupProvider, setLookupProvider] = useState('');
   const nameRevision = useRef(0);
   useEffect(() => {
     setLookupStatus(''); setLookupSource('');
@@ -1140,7 +1141,7 @@ export function ClientsModule({
         if (controller.signal.aborted) return;
         if (!response.ok) throw new Error(data.error || 'No se pudo consultar el CUIT. Completá la razón social manualmente.');
         if (data.cuit !== cuit || !data.businessName) throw new Error('La fuente no devolvió una coincidencia exacta.');
-        setLookupSource(data.source);
+        setLookupSource(data.source); setLookupProvider(data.provider);
         if (nameRevision.current === revision) {
           setEditingClient(current => ({ ...current, businessName: data.businessName }));
           setLookupStatus('Razón social encontrada. Revisala antes de guardar.');
@@ -1216,10 +1217,10 @@ export function ClientsModule({
             <label>
               CUIT
               <input inputMode="numeric" maxLength={13} placeholder="XX-XXXXXXXX-X" aria-invalid={Boolean(cuitError)} aria-describedby="client-cuit-help" value={editingClient.cuit} onChange={(event) => { setEditingClient({ ...editingClient, cuit: event.target.value }); setClientError(''); setLookupRequest(current => current + 1); }} onBlur={() => { setCuitTouched(true); setEditingClient(current => ({ ...current, cuit: formatCuit(current.cuit) })); }} />
-              <small id="client-cuit-help" role={cuitError ? 'alert' : undefined}>{cuitError || '11 dígitos. Al completarlos se busca la razón social en CUIT Online.'}</small>
+              <small id="client-cuit-help" role={cuitError ? 'alert' : undefined}>{cuitError || '11 dígitos. Al completarlos se busca la razón social en fuentes públicas (BCRA y CUIT Online).'}</small>
               <button className="ghost-button" type="button" disabled={Boolean(validateCuit(editingClient.cuit))} onClick={() => setLookupRequest(current => current + 1)}>Buscar razón social</button>
               <small role="status">{lookupStatus}</small>
-              {lookupSource && <small><a href={lookupSource} target="_blank" rel="noreferrer">Ver fuente: CUIT Online</a> · Consulta pública, no es una constancia de ARCA.</small>}
+              {lookupSource && <small><a href={lookupSource} target="_blank" rel="noreferrer">Ver fuente: {lookupProvider}</a> · Consulta pública, no es una constancia de ARCA.</small>}
             </label>
             <label>
               Razón social
