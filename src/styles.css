@@ -1154,3 +1154,14 @@ a { color: #125da8; text-underline-offset: 3px; }
   .quote-topbar .page-description { font-size: 1.05rem; line-height: 1.4; }
   .quote-submit .primary-button { width: 100%; }
 }
+
+.tariff-lookup-status {
+  padding: 14px 16px;
+  border: 1px solid #8cbadd;
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  background: #dceefa;
+  color: #174775;
+  font-size: .88rem;
+  font-weight: 600;
+}
