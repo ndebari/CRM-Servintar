@@ -51,6 +51,7 @@ test('reference route to Terminal Zárate has named plazas once per direction, n
   ['return','Campana','ausol'], ['return','Illia','ausa']
  ]);
  assert.ok(rows.every(t => t.road && t.province));
+ assert.ok(rows.filter(t => t.name === 'Campana').every(t => t.locality === 'Ricardo Rojas' && t.road.includes('km 34')));
  assert.equal(new Set(rows.map(t=>t.id)).size,4);
 });
 

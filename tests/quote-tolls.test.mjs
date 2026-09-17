@@ -22,11 +22,11 @@ function draftWithTolls(amount) {
 test('Base Lavaisse and its legacy label route to the actual address, including the return', () => {
  const draft = {...createQuoteDraft('demo'),emptyPickup:'TRP',consolidationDestination:'Cliente',deliveryPort:'Terminal Zárate',isRoundTrip:true};
  assert.equal(draft.base,'Base Lavaisse');
- const stops=JSON.parse(getTruckRouteKey(draft));
+ const stops=JSON.parse(getTruckRouteKey(draft)).stops;
  assert.equal(stops[0],'Benjamín Lavaisse 1401, Ciudad Autónoma de Buenos Aires, Argentina');
  assert.equal(stops.at(-1),stops[0]);
  assert.equal(getTruckRouteKey({...draft,base:'Base Buenos Aires'}),getTruckRouteKey(draft));
- assert.deepEqual(JSON.parse(getTruckRouteKey({...draft,transportKind:'otro',origin:'Base Lavaisse',destination:'Terminal Zárate',isRoundTrip:false})),[stops[0],'Terminal Zárate']);
+ assert.deepEqual(JSON.parse(getTruckRouteKey({...draft,transportKind:'otro',origin:'Base Lavaisse',destination:'Terminal Zárate',isRoundTrip:false})).stops,[stops[0],'Terminal Zárate']);
 });
 test('peajes are counted once before the margin and included in quote text', () => {
   const quote = buildPreparedQuote(draftWithTolls(12000), [], { perDay: 5000, perKm: 100 });
@@ -70,15 +70,15 @@ test('refresh preserves edits for each repeated station independently', () => {
 
 
 test('Google distance includes every leg, including the selected return', async () => {
-  let request;
+  const requests = [];
+  const distances = [12000, 23000, 34000];
   globalThis.window = { google: { maps: { DirectionsService: class { route(input, callback) {
-    request = input;
-    callback({ routes: [{ legs: [{ distance: { value: 12000 } }, { distance: { value: 23000 } }, { distance: { value: 34000 } }] }] }, 'OK');
+    requests.push(input);
+    callback({ routes: [{ legs: [{ distance: { value: distances[requests.length - 1] } }] }] }, 'OK');
   } } } } };
   assert.equal(await calculateRouteDistance(['Base', 'Retiro', 'Puerto', 'Base']), 69);
-  assert.deepEqual(request.waypoints, [{ location: 'Retiro', stopover: true }, { location: 'Puerto', stopover: true }]);
-  assert.equal(request.destination, 'Base');
-  assert.equal(request.travelMode, 'DRIVING');
+  assert.deepEqual(requests.map(r => [r.origin, r.destination]), [['Base','Retiro'],['Retiro','Puerto'],['Puerto','Base']]);
+  assert.ok(requests.every(r => r.provideRouteAlternatives && r.avoidHighways === false && r.avoidTolls === false && r.travelMode === 'DRIVING' && !r.waypoints));
   delete globalThis.window;
 });
 
@@ -88,6 +88,48 @@ test('Google errors and incomplete distances never become a zero kilometer quote
     await assert.rejects(calculateRouteDistance(['Base', 'Puerto']));
   }
   delete globalThis.window;
+});
+
+test('major-road preference selects matching geometry and distance, bounds detours, and favors avenues over streets', async () => {
+  const route = (distance, road, marker) => ({ legs: [{ distance: { value: distance }, steps: [{
+    instructions: `Continuá por <b>${road}</b>`, distance: { value: distance },
+    path: [{lat:()=>marker,lng:()=>-58},{lat:()=>marker+.01,lng:()=>-58}]
+  }] }] });
+  const street = route(10000, 'Calle Belgrano', -34);
+  const avenue = route(11000, 'Av. del Libertador', -35);
+  const motorway = route(12000, 'Autopista del Sol / RN9', -36);
+  const detour = route(14000, 'RN 9', -37);
+  for (const [routes, km, lat] of [
+    [[street, motorway, avenue], 12, -36],
+    [[street, detour, avenue], 11, -35],
+    [[route(10000,'Calle Belgrano</b><div>hacia <b>RN 9',-34), avenue],11,-35],
+    [[route(10000,'Calle A',-34),route(11000,'Calle B',-35)],10,-34]
+  ]) {
+    globalThis.window = {google:{maps:{DirectionsService:class {route(input,callback){callback({routes},'OK');}}}}};
+    try {
+      const selected = await calculateGoogleRoute(['Origen','Destino']);
+      assert.equal(selected.distanceKm, km);
+      assert.equal(selected.path[0][0],lat);
+    } finally { delete globalThis.window; }
+  }
+});
+
+test('missing geometry in any leg prevents toll detection across invented connectors', async () => {
+  let index = 0;
+  globalThis.window = {google:{maps:{DirectionsService:class {route(input,callback){
+    callback({routes:[{legs:[{distance:{value:1000},steps:index++ === 1 ? [] : [{path:[{lat:()=>-34,lng:()=>-58},{lat:()=>-34.01,lng:()=>-58}]}]}]}]},'OK');
+  }}}}};
+  try {
+    const result = await calculateGoogleRoute(['Base','A','B','Base']);
+    assert.equal(result.distanceKm,3);
+    assert.deepEqual(result.path,[]);
+  } finally { delete globalThis.window; }
+});
+
+test('confirmed tolls from the previous routing policy require recalculation', () => {
+  const draft = draftWithTolls(100);
+  draft.tollRouteKey = JSON.stringify(JSON.parse(draft.tollRouteKey).stops);
+  assert.equal(summarizeTolls(draft).ready, false);
 });
 
 
@@ -126,7 +168,8 @@ test('Google return boundary follows the final leg, not half the route', async (
   {distance:{value:5000},steps:[{path:[point(-34.2,-58),point(-34.3,-58)]}]},
   {distance:{value:15000},steps:[{path:[point(-34.3,-58),point(-34,-58)]}]}
  ];
- globalThis.window = {google:{maps:{DirectionsService:class {route(input, callback){callback({routes:[{legs}]},'OK');}}}}};
+ let nextLeg = 0;
+ globalThis.window = {google:{maps:{DirectionsService:class {route(input, callback){callback({routes:[{legs:[legs[nextLeg++]]}]},'OK');}}}}};
  try {
   const route = await calculateGoogleRoute(['Base','Retiro','Destino','Base']);
   assert.equal(route.distanceKm, 30);

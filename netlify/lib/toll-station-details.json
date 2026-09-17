@@ -237,27 +237,29 @@
       "name": "Campana",
       "operator": "ausol",
       "plazaId": "ausol-campana",
-      "road": "RN 9 · Acceso Norte, ramal Campana",
+      "road": "RN 9 · Acceso Norte, ramal Escobar / Campana · km 34",
       "province": "Buenos Aires",
       "identitySource": "https://www.ausol.com.ar/valores",
-      "matchRadiusMeters": 25
+      "matchRadiusMeters": 25,
+      "locality": "Ricardo Rojas"
     },
     {
       "id": 454551081,
       "name": "Campana",
       "operator": "ausol",
       "plazaId": "ausol-campana",
-      "road": "RN 9 · Acceso Norte, ramal Campana",
+      "road": "RN 9 · Acceso Norte, ramal Escobar / Campana · km 34",
       "province": "Buenos Aires",
       "identitySource": "https://www.ausol.com.ar/valores",
-      "matchRadiusMeters": 25
+      "matchRadiusMeters": 25,
+      "locality": "Ricardo Rojas"
     },
     {
       "id": 4598707920,
       "name": "Campana",
       "operator": "ausol",
       "plazaId": "ausol-campana",
-      "road": "RN 9 · Acceso Norte, ramal Campana",
+      "road": "RN 9 · Acceso Norte, ramal Escobar / Campana · km 34",
       "province": "Buenos Aires",
       "identitySource": "https://www.ausol.com.ar/valores",
       "accessPath": [
@@ -270,7 +272,8 @@
           -58.693442
         ]
       ],
-      "accessToleranceMeters": 8
+      "accessToleranceMeters": 8,
+      "locality": "Ricardo Rojas"
     }
   ]
 }

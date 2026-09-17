@@ -12,6 +12,9 @@ import {
   Users
 } from 'lucide-react';
 
+type GoogleStep = { instructions?: string; distance?: { value: number }; path?: { lat: () => number; lng: () => number }[] };
+type GoogleLeg = { steps?: GoogleStep[]; distance?: { value: number } };
+
 declare global {
   interface Window {
     google?: {
@@ -22,17 +25,16 @@ declare global {
               destination: string;
               origin: string;
               travelMode: string;
+              provideRouteAlternatives?: boolean;
+              avoidHighways?: boolean;
+              avoidTolls?: boolean;
+              region?: string;
               waypoints?: { location: string; stopover: boolean }[];
             },
             callback: (
               result: {
                 routes?: {
-                  legs?: {
-                    steps?: { path?: { lat: () => number; lng: () => number }[] }[];
-                    distance?: {
-                      value: number;
-                    };
-                  }[];
+                  legs?: GoogleLeg[];
                 }[];
               } | null,
               status: string
@@ -431,43 +433,70 @@ export function mergeRouteTolls(incoming: RouteToll[], previous: RouteToll[]) {
 }
 
 export function getTruckRouteKey(draft: TransportQuoteDraft) {
-  return JSON.stringify(getRouteStops(draft));
+  return JSON.stringify({ policy: 'major-roads-v1', stops: getRouteStops(draft) });
 }
 
-export function calculateGoogleRoute(stops: string[]) {
-  return new Promise<{ distanceKm: number; path: number[][]; returnStartIndex: number }>((resolve, reject) => {
-    if (!window.google?.maps?.DirectionsService) {
-      reject(new Error('Google Directions is not available'));
-      return;
-    }
+// Directions exposes instructions, not road classes or truck restrictions.
+// Discount only recognized road names; unclassified distance remains conservative.
+function roadWeight(step: GoogleStep) {
+  const instruction = (step.instructions ?? '').split(/<div\b/i)[0];
+  const road = instruction.match(/<b>(.*?)<\/b>/i)?.[1] ?? '';
+  const name = road.replace(/<[^>]*>/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (/\b(autopista|autovia|au\.?\s|acceso norte|acceso oeste|panamericana|gral\.? paz|general paz|rn\s*\d|rp\s*\d|ruta\b)/.test(name)) return 1;
+  if (/\b(avenida|av\.?\s)/.test(name)) return 1.3;
+  return 2;
+}
 
-    const directionsService = new window.google.maps.DirectionsService();
-    const origin = stops[0];
-    const destination = stops[stops.length - 1];
-    const waypoints = stops.slice(1, -1).map((location) => ({ location, stopover: true }));
+function routeScore(leg: GoogleLeg) {
+  const meters = leg.distance!.value;
+  let remaining = meters;
+  let score = meters * 2;
+  for (const step of leg.steps ?? []) {
+    const distance = step.distance?.value;
+    if (distance === undefined || !Number.isFinite(distance) || distance < 0) continue;
+    const covered = Math.min(distance, remaining);
+    score -= covered * (2 - roadWeight(step));
+    remaining -= covered;
+  }
+  return score;
+}
 
-    directionsService.route(
-      {
-        origin,
-        destination,
-        waypoints,
-        travelMode: window.google.maps.TravelMode?.DRIVING ?? 'DRIVING'
-      },
-      (result, status) => {
-        if (status !== (window.google?.maps?.DirectionsStatus?.OK ?? 'OK') || !result?.routes?.[0]?.legs) {
-          reject(new Error(`Directions failed with status ${status}`));
-          return;
-        }
-
-        if (result.routes[0].legs.length !== stops.length - 1 || result.routes[0].legs.some(leg => !Number.isFinite(leg.distance?.value) || (leg.distance?.value ?? -1) < 0)) { reject(new Error('Incomplete route distance')); return; }
-        const meters = result.routes[0].legs.reduce((total, leg) => total + (leg.distance?.value ?? 0), 0);
-        const legPaths = result.routes[0].legs.map(leg => (leg.steps ?? []).flatMap(step => (step.path ?? []).map(point => [point.lat(), point.lng()])));
-        const path = legPaths.flat();
-        const returnStartIndex = legPaths.slice(0, -1).reduce((count, points) => count + points.length, 0);
-        resolve({ distanceKm: Math.round(meters / 1000), path, returnStartIndex });
+export async function calculateGoogleRoute(stops: string[]) {
+  if (!window.google?.maps?.DirectionsService) throw new Error('Google Directions is not available');
+  if (stops.length < 2 || stops.some(stop => !stop.trim())) throw new Error('Incomplete route stops');
+  const service = new window.google.maps.DirectionsService();
+  const legs: GoogleLeg[] = [];
+  // Alternatives are unavailable with intermediate waypoints. Request each leg,
+  // keeping the user's stop order and calculating the return independently.
+  for (let index = 0; index < stops.length - 1; index++) {
+    legs.push(await new Promise<GoogleLeg>((resolve, reject) => service.route({
+      origin: stops[index], destination: stops[index + 1],
+      travelMode: window.google!.maps!.TravelMode?.DRIVING ?? 'DRIVING',
+      provideRouteAlternatives: true, avoidHighways: false, avoidTolls: false, region: 'AR'
+    }, (result, status) => {
+      if (status !== (window.google?.maps?.DirectionsStatus?.OK ?? 'OK')) {
+        reject(new Error(`Directions failed with status ${status}`)); return;
       }
-    );
-  });
+      const candidates = (result?.routes ?? []).flatMap(route => route.legs?.length === 1 ? route.legs : [])
+        .filter(leg => Number.isFinite(leg.distance?.value) && leg.distance!.value >= 0);
+      if (!candidates.length) { reject(new Error('Incomplete route distance')); return; }
+      const shortest = Math.min(...candidates.map(leg => leg.distance!.value));
+      // Bound detours: prefer major roads among alternatives within 25% of the shortest.
+      const selected = candidates.filter(leg => leg.distance!.value <= shortest * 1.25)
+        .sort((a, b) => routeScore(a) - routeScore(b) || a.distance!.value - b.distance!.value)[0];
+      resolve(selected);
+    })));
+  }
+  const legPaths = legs.map(leg => (leg.steps ?? []).flatMap(step => (step.path ?? []).map(point => [point.lat(), point.lng()])));
+  // Never join across a missing leg and estimate tolls on an invented connector.
+  const completeGeometry = legs.every((leg, index) => legPaths[index].length >= 2 &&
+    (leg.steps ?? []).every(step => step.path && step.path.length >= 2) &&
+    legPaths[index].every(point => point.every(Number.isFinite)));
+  return {
+    distanceKm: Math.round(legs.reduce((sum, leg) => sum + leg.distance!.value, 0) / 1000),
+    path: completeGeometry ? legPaths.flat() : [],
+    returnStartIndex: legPaths.slice(0, -1).reduce((count, points) => count + points.length, 0)
+  };
 }
 
 export async function calculateRouteDistance(stops: string[]) {
@@ -543,7 +572,7 @@ export function CotizadorHome({
         if (version === manualDistanceVersion.current) {
           latestDraft.current = { ...latestDraft.current, distanceKm: route.distanceKm, requiredDays: calculateRequiredDays(route.distanceKm) };
           latestOnChange.current(latestDraft.current);
-          setDistanceStatus('Kilómetros estimados con Google · incluye paradas y vuelta. Ruta sin verificar para tránsito pesado.');
+          setDistanceStatus('Google: preferencia por autopistas, rutas y avenidas entre alternativas hasta un 25% más largas que la más corta. Ruta sin verificar para tránsito pesado.');
         } else setDistanceStatus('Kilómetros editados manualmente. Peajes estimados sobre la ruta de Google.');
         if (route.path.length < 2) throw new Error('Google no devolvió el trazado necesario para estimar peajes.');
         setRouteStatus('Estimando estaciones sobre el trazado de Google…');
