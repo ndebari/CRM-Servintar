@@ -580,7 +580,13 @@ export function CotizadorHome({
             category: found.category, checkedAt: found.checkedAt, lookupMessage: found.lookupMessage };
         }) });
         const verified = result.tolls.filter((item: RouteToll) => item.source === 'official' && item.amount !== null).length;
-        setOfficialStatus(verified ? `${verified} tarifa(s) verificada(s). Revisá los campos pendientes debajo de cada peaje.` : 'No se obtuvo ningún importe. Revisá el motivo y los datos pendientes debajo de cada peaje.');
+        const pendingReasons = [...new Set<string>(result.tolls
+          .filter((item: RouteToll) => item.amount === null && item.lookupMessage)
+          .map((item: RouteToll) => item.lookupMessage as string))];
+        setOfficialStatus([
+          verified ? `${verified} tarifa(s) completada(s) automáticamente.` : '',
+          ...pendingReasons
+        ].filter(Boolean).join(' ') || 'No se obtuvo ningún importe. Probá actualizar las tarifas.');
       } catch (error) {
         if (active) setOfficialStatus(error instanceof Error ? error.message : 'No se pudo consultar las publicaciones.');
       }
@@ -799,7 +805,7 @@ export function CotizadorHome({
                 </select>
               </label>
               <button className="ghost-button" type="button" onClick={() => setRouteRetry(value => value + 1)}>Estimar estaciones con Google</button>
-              <button className="ghost-button" type="button" onClick={() => setOfficialRetry(value => value + 1)}>Buscar tarifas oficiales</button>
+              <button className="ghost-button" type="button" onClick={() => setOfficialRetry(value => value + 1)}>Actualizar tarifas</button>
               <button className="ghost-button" type="button" onClick={() => onDraftChange({ ...draft,
                 tolls: [...draft.tolls, { id: 'manual:' + crypto.randomUUID(), name: '', locality: '', road: '', province: '', amount: null, source: 'manual' }],
                 tollRouteKey: routeKey, tollListStatus: 'pending'
@@ -808,8 +814,8 @@ export function CotizadorHome({
             {routeStatus && <p className="muted-copy route-status" role="status">{routeStatus}</p>}
             {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Consultá la ruta o cargá los peajes manualmente.' : 'Recorrido confirmado sin peajes.'}</p>}
             <p className="muted-copy"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Estaciones: © OpenStreetMap contributors (ODbL)</a>. Detección aproximada, editable.</p>
-            <p className="muted-copy">Búsqueda en publicaciones de AUBASA y AUSOL. La concesionaria se reconoce por el nombre cuando es posible. Completá pago, sentido y horario de cada pasada. Otras estaciones quedan para carga manual.</p>
-            <p className="toll-source" role="status">{officialStatus}</p>
+            <p className="muted-copy">El precio se busca automáticamente al completar la forma de pago, el horario y el sentido de cada pasada. Cobertura: estaciones verificadas de AUBASA y AUSOL. No hace falta pulsar Actualizar tarifas.</p>
+            <p className="toll-source tariff-lookup-status" role="status">{officialStatus}</p>
             <div className="toll-list">
               {draft.tolls.map((toll, index) => (
                 <div className="toll-card" key={toll.id}>
