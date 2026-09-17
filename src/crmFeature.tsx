@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Building2,
   ClipboardList,
-  FileSpreadsheet,
   FileText,
   Plus,
   Save,
@@ -456,8 +455,6 @@ export function CotizadorHome({
   draft,
   previousQuotes,
   onDraftChange,
-  onOpenClients,
-  onOpenCosts,
   onPrepareQuote,
   totals
 }: {
@@ -466,8 +463,6 @@ export function CotizadorHome({
   draft: TransportQuoteDraft;
   previousQuotes: PreparedQuote[];
   onDraftChange: (draft: TransportQuoteDraft) => void;
-  onOpenClients: () => void;
-  onOpenCosts: () => void;
   onPrepareQuote: () => void;
   totals: CostTotals;
 }) {
@@ -507,8 +502,8 @@ export function CotizadorHome({
       latestOnChange.current(latestDraft.current);
     }
     if (routeStops.length < 2 || routeStops.some(stop => !stop)) {
-      setDistanceStatus('Completá los puntos del recorrido para calcular kilómetros con Google.');
-      setRouteStatus('Completá el recorrido para estimar estaciones sobre la ruta de Google.');
+      setDistanceStatus('');
+      setRouteStatus('');
       return;
     }
     const timeout = window.setTimeout(async () => {
@@ -649,29 +644,13 @@ export function CotizadorHome({
 
   return (
     <>
-      <header className="topbar">
+      <header className="topbar quote-topbar">
         <div>
-          <p className="eyebrow">Gestión comercial</p>
           <h1>Cotizador</h1>
-          <p className="page-description">Cada viaje empieza con una buena cotización.</p>
-        </div>
-        <div className="topbar-actions">
-          <button className="ghost-button" onClick={onOpenClients} type="button">
-            <Users size={17} />
-            Clientes
-          </button>
-          <button className="ghost-button" onClick={onOpenCosts} type="button">
-            <FileSpreadsheet size={17} />
-            Costos
-          </button>
-          <button className="primary-button" disabled={!canPrepare} onClick={onPrepareQuote} type="button">
-            <FileText size={18} />
-            Preparar
-          </button>
+          <p className="page-description">Cada viaje comienza con una cotización bien hecha</p>
         </div>
       </header>
 
-      <p className="muted-copy route-status" role="status">{distanceStatus}</p>
       <section className="metric-grid" aria-label="Resumen de cotizacion">
         <Metric label="Cliente" value={selectedClient?.alias || 'Sin cliente'} hint={selectedClient?.businessName || 'Crear o seleccionar cliente'} />
         <Metric label="Kilometros" value={`${draft.distanceKm.toLocaleString('es-AR')} km`} hint={draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'} />
@@ -806,6 +785,7 @@ export function CotizadorHome({
               </select>
             </label>
           </div>
+          {distanceStatus && <p className="muted-copy route-status" role="status">{distanceStatus}</p>}
           <section className="toll-section" aria-label="Peajes para camión">
             <div className="panel-header">
               <div><p className="eyebrow">Tránsito pesado</p><h2>Peajes del recorrido</h2></div>
@@ -825,7 +805,7 @@ export function CotizadorHome({
                 tollRouteKey: routeKey, tollListStatus: 'pending'
               })}>Agregar peaje</button>
             </div>
-            <p className="muted-copy route-status" role="status">{routeStatus}</p>
+            {routeStatus && <p className="muted-copy route-status" role="status">{routeStatus}</p>}
             {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Consultá la ruta o cargá los peajes manualmente.' : 'Recorrido confirmado sin peajes.'}</p>}
             <p className="muted-copy"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Estaciones: © OpenStreetMap contributors (ODbL)</a>. Detección aproximada, editable.</p>
             <p className="muted-copy">Búsqueda en publicaciones de AUBASA y AUSOL. La concesionaria se reconoce por el nombre cuando es posible. Completá pago, sentido y horario de cada pasada. Otras estaciones quedan para carga manual.</p>
@@ -937,6 +917,12 @@ export function CotizadorHome({
           </div>
         </div>
       </section>
+      <div className="quote-submit">
+        <button className="primary-button" disabled={!canPrepare} onClick={onPrepareQuote} type="button">
+          <FileText size={18} />
+          Preparar cotización
+        </button>
+      </div>
     </>
   );
 }

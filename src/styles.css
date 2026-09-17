@@ -1131,3 +1131,26 @@ a { color: #285f49; text-underline-offset: 3px; }
   *, *::before, *::after { transition: none !important; }
 }
 
+
+/* Keep navigation visible while each module scrolls independently. */
+.app-shell { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.sidebar { position: relative; top: auto; height: 100%; min-height: 0; overflow-y: auto; }
+.workspace { min-height: 0; overflow: auto; overscroll-behavior-y: contain; scroll-padding-top: 110px; }
+.workspace:has(.quote-topbar) { padding-top: 0; }
+.quote-topbar {
+  position: sticky; top: 0; z-index: 5; margin: 0; padding: 14px 0;
+  background: var(--canvas); box-shadow: 0 8px 12px -12px #213e3070;
+}
+.quote-topbar h1 { font-size: 1.4rem; line-height: 1.2; }
+.quote-topbar .page-description { margin-top: 4px; font-size: .8rem; }
+.quote-submit { display: flex; justify-content: flex-end; padding-bottom: 8px; }
+@media (max-width: 1180px) {
+  .app-shell { grid-template-rows: auto minmax(0, 1fr); }
+  .sidebar { height: auto; max-height: 40dvh; }
+}
+@media (max-width: 560px) {
+  .quote-topbar { padding: 10px 0; }
+  .quote-topbar h1 { font-size: 1.2rem; }
+  .quote-topbar .page-description { font-size: .74rem; line-height: 1.4; }
+  .quote-submit .primary-button { width: 100%; }
+}
