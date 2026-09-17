@@ -11,7 +11,45 @@ const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url),
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
 const catalogUrl = new URL('../netlify/lib/toll-operators.json', import.meta.url).href;
 await writeFile(`${temp}/quote.mjs`, compiled.outputText.replace("'../netlify/lib/toll-operators.json'", JSON.stringify(catalogUrl) + " with { type: 'json' }"));
-const { createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+const { getRouteStops, createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+
+test('intermediate stops preserve segment order, include optional return stops once, and isolate transport types', () => {
+ const draft={...createQuoteDraft('demo'),transportKind:'otro',origin:'CABA',destination:'Zárate',isRoundTrip:true,intermediateStops:[
+   {id:'1',address:'Escobar',afterStop:0,transportKind:'otro'},
+   {id:'2',address:'Campana',afterStop:0,transportKind:'otro'},
+   {id:'3',address:'Pilar',afterStop:1,transportKind:'otro'},
+   {id:'4',address:'Otro viaje',afterStop:1,transportKind:'expo'}
+ ]};
+ assert.deepEqual(getRouteStops(draft),['CABA','Escobar','Campana','Zárate','Pilar','CABA']);
+ assert.deepEqual(getRouteStops({...draft,isRoundTrip:false}),['CABA','Escobar','Campana','Zárate']);
+ const moved={...draft,intermediateStops:[draft.intermediateStops[1],draft.intermediateStops[0],...draft.intermediateStops.slice(2)]};
+ assert.deepEqual(getRouteStops(moved),['CABA','Campana','Escobar','Zárate','Pilar','CABA']);
+ assert.notEqual(getTruckRouteKey(moved),getTruckRouteKey(draft));
+ assert.deepEqual(getRouteStops({...draft,intermediateStops:draft.intermediateStops.filter(stop=>stop.id!=='1')}),['CABA','Campana','Zárate','Pilar','CABA']);
+});
+
+test('Expo and Impo insert intermediate stops between their operational stops and retain blank stops for validation', () => {
+ for(const transportKind of ['expo','impo']) {
+   const draft={...createQuoteDraft('demo'),transportKind,base:'Base Lavaisse',emptyPickup:'Puerto',fullPickupPort:'Puerto',consolidationDestination:'Cliente',deconsolidationDestination:'Cliente',deliveryPort:'Terminal',emptyReturnYard:'Terminal',isRoundTrip:true,
+     intermediateStops:[{id:'x',address:'Balanza',afterStop:1,transportKind},{id:'y',address:'',afterStop:2,transportKind}]};
+   assert.deepEqual(getRouteStops(draft).slice(1,-1),['Puerto','Balanza','Cliente','','Terminal']);
+   const key=getTruckRouteKey(draft);
+   assert.notEqual(key,getTruckRouteKey({...draft,intermediateStops:[]}));
+ }
+});
+
+test('Google receives every intermediate stop in sequence and does not mirror outbound stops on return', async () => {
+ const draft={...createQuoteDraft('demo'),transportKind:'otro',origin:'CABA',destination:'Zárate',isRoundTrip:true,
+   intermediateStops:[{id:'x',address:'Escobar',afterStop:0,transportKind:'otro'}]};
+ const requests=[];
+ globalThis.window={google:{maps:{DirectionsService:class{route(request,callback){requests.push([request.origin,request.destination]);callback({routes:[{legs:[{distance:{value:10000},steps:[{path:[{lat:()=>-34,lng:()=>-58},{lat:()=>-34.1,lng:()=>-58}]}]}]}]},'OK');}}}}};
+ try {
+   const result=await calculateGoogleRoute(getRouteStops(draft));
+   assert.equal(result.distanceKm,30);
+   assert.deepEqual(requests,[['CABA','Escobar'],['Escobar','Zárate'],['Zárate','CABA']]);
+   assert.deepEqual(result.legs.map(leg=>[leg.origin,leg.destination]),requests);
+ } finally {delete globalThis.window;}
+});
 
 test('selected additionals use the ABM base amount, preserve percentage meaning and allow quote-only edits', () => {
  const definition={id:'wait',name:'Espera',description:'',kind:'fixed',amount:2500};

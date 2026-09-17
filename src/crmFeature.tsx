@@ -131,6 +131,7 @@ export type Client = {
 
 export type QuoteStatus = 'Borrador' | 'Pendiente de envio' | 'Enviada' | 'Aprobada' | 'Rechazada';
 export type TransportKind = 'expo' | 'impo' | 'otro';
+export type IntermediateStop = { id: string; address: string; afterStop: number; transportKind: TransportKind };
 
 export type CostTotals = {
   perDay: number;
@@ -183,6 +184,7 @@ export type TransportQuoteDraft = {
   emptyReturnYard: string;
   destination: string;
   isRoundTrip: boolean;
+  intermediateStops?: IntermediateStop[];
   returnFromStop?: number;
   distanceKm: number;
   requiredDays: number;
@@ -346,6 +348,7 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       `De acuerdo con lo solicitado, enviamos cotizacion por ${draft.serviceName}.`,
       `Operacion: ${draft.transportKind.toUpperCase()} - ${draft.isRoundTrip ? 'roundtrip' : 'solo ida'}.`,
       `Recorrido: ${getRouteDescription(draft)}.`,
+      ...(activeIntermediateStops(draft).length ? [`Recorrido con paradas: ${getRouteStops(draft).join(' → ')}.`] : []),
       `Kilometros considerados: ${draft.distanceKm.toLocaleString('es-AR')} km.`,
       `Dias operativos considerados: ${draft.requiredDays}.`,
       '',
@@ -394,7 +397,7 @@ function findPreviousAdditionalAmount(quotes: PreparedQuote[], clientId: string,
   return match ? Number(match[1].replace(/\./g, '')) : undefined;
 }
 
-function getRouteStops(draft: TransportQuoteDraft) {
+function getMainRouteStops(draft: TransportQuoteDraft) {
   const stops =
     draft.transportKind === 'expo'
       ? [draft.base, draft.emptyPickup, draft.consolidationDestination, draft.deliveryPort]
@@ -408,6 +411,17 @@ function getRouteStops(draft: TransportQuoteDraft) {
   }
 
   return cleanStops;
+}
+
+function activeIntermediateStops(draft: TransportQuoteDraft) {
+  const segmentCount = getMainRouteStops(draft).length - 1;
+  return (draft.intermediateStops ?? []).filter(stop => stop.transportKind === draft.transportKind && stop.afterStop >= 0 && stop.afterStop < segmentCount);
+}
+
+export function getRouteStops(draft: TransportQuoteDraft) {
+  const mainStops = getMainRouteStops(draft);
+  const intermediate = activeIntermediateStops(draft);
+  return mainStops.flatMap((address,index) => [address, ...intermediate.filter(stop => stop.afterStop === index).map(stop => routeAddress(stop.address))]);
 }
 
 export function summarizeTolls(draft: TransportQuoteDraft) {
@@ -575,6 +589,11 @@ export function CotizadorHome({
       setRouteStatus('');
       return;
     }
+    if (routeStops.length > 26) {
+      setDistanceStatus('');
+      setRouteStatus('El recorrido admite hasta 25 tramos. Quitá una parada para calcularlo.');
+      return;
+    }
     const timeout = window.setTimeout(async () => {
       try {
         setDistanceStatus('Calculando kilómetros con Google…');
@@ -664,8 +683,27 @@ export function CotizadorHome({
   }, [officialLookupKey]);
 
   const updateDraft = <K extends keyof TransportQuoteDraft>(field: K, value: TransportQuoteDraft[K]) => {
-    const routeFields = ['transportKind','base','origin','destination','emptyPickup','consolidationDestination','deliveryPort','fullPickupPort','deconsolidationDestination','emptyReturnYard','isRoundTrip'];
+    const routeFields = ['transportKind','base','origin','destination','emptyPickup','consolidationDestination','deliveryPort','fullPickupPort','deconsolidationDestination','emptyReturnYard','isRoundTrip','intermediateStops'];
     onDraftChange({ ...draft, ...(routeFields.includes(field) ? {returnFromStop: undefined} : {}), [field]: value });
+  };
+
+  const mainStopLabels = draft.transportKind === 'expo' ? ['Base','Retiro de vacío','Consolidado','Puerto de entrega']
+    : draft.transportKind === 'impo' ? ['Base','Puerto retiro full','Desconsolidado','Devolución de vacío'] : ['Origen','Destino'];
+  const segmentLabels = [...mainStopLabels.slice(0,-1).map((label,index) => `${label} → ${mainStopLabels[index+1]}`),
+    ...(draft.isRoundTrip ? [`${mainStopLabels[mainStopLabels.length-1]} → ${mainStopLabels[0]} (regreso)`] : [])];
+  const intermediateStops = (draft.intermediateStops ?? []).filter(stop => stop.transportKind === draft.transportKind)
+    .sort((a,b) => a.afterStop - b.afterStop);
+  const editIntermediate = (id: string, changes: Partial<IntermediateStop>) => updateDraft('intermediateStops',
+    (draft.intermediateStops ?? []).map(stop => stop.id === id ? {...stop,...changes} : stop));
+  const moveIntermediate = (id: string, offset: number) => {
+    const all = [...(draft.intermediateStops ?? [])];
+    const current = all.findIndex(stop => stop.id === id);
+    const peers = all.map((stop,index) => ({stop,index})).filter(({stop}) => stop.transportKind === draft.transportKind && stop.afterStop === all[current].afterStop);
+    const peerIndex = peers.findIndex(({index}) => index === current);
+    const target = peers[peerIndex + offset]?.index;
+    if (target === undefined) return;
+    [all[current],all[target]] = [all[target],all[current]];
+    updateDraft('intermediateStops', all);
   };
 
   const addManualToll = (journey: 'outbound' | 'return') => {
@@ -798,6 +836,32 @@ export function CotizadorHome({
             </div>
           )}
 
+          <section className="intermediate-stops" aria-label="Paradas intermedias">
+            <div className="panel-header"><h3>Paradas intermedias</h3>
+              <button type="button" className="ghost-button" disabled={routeStops.length >= 26} onClick={() => updateDraft('intermediateStops', [...(draft.intermediateStops ?? []),
+                {id: crypto.randomUUID(), address: '', afterStop: 0, transportKind: draft.transportKind}])}><Plus size={16} /> Agregar parada</button>
+            </div>
+            {intermediateStops.map((stop,index) => {
+              const peers = intermediateStops.filter(other => other.afterStop === stop.afterStop);
+              const peerIndex = peers.findIndex(other => other.id === stop.id);
+              return <div className="intermediate-stop" key={stop.id}>
+                <div className="form-grid">
+                  <AddressField label={'Parada intermedia ' + (index+1)} value={stop.address} onChange={address => editIntermediate(stop.id,{address})} />
+                  <label>Ubicación en el recorrido<select aria-label={'Tramo de parada ' + (index+1)} value={stop.afterStop} onChange={event => editIntermediate(stop.id,{afterStop:Number(event.target.value)})}>
+                    {segmentLabels.map((label,segment) => <option key={segment} value={segment}>{label}</option>)}
+                    {stop.afterStop >= segmentLabels.length && <option value={stop.afterStop}>Regreso · Roundtrip desactivado</option>}
+                  </select></label>
+                </div>
+                {stop.afterStop >= segmentLabels.length && <p className="muted-copy">Esta parada de regreso no se incluye mientras Roundtrip esté desactivado.</p>}
+                <div className="intermediate-actions">
+                  <button type="button" className="ghost-button" aria-label={'Subir parada ' + (index+1)} disabled={peerIndex === 0} onClick={() => moveIntermediate(stop.id,-1)}>Subir</button>
+                  <button type="button" className="ghost-button" aria-label={'Bajar parada ' + (index+1)} disabled={peerIndex === peers.length-1} onClick={() => moveIntermediate(stop.id,1)}>Bajar</button>
+                  <button type="button" className="ghost-button" aria-label={'Quitar parada ' + (index+1)} onClick={() => updateDraft('intermediateStops',(draft.intermediateStops ?? []).filter(other => other.id !== stop.id))}>Quitar</button>
+                </div>
+              </div>;
+            })}
+          </section>
+
           <div className="form-grid">
             <label>
               Km recorrido
@@ -860,11 +924,6 @@ export function CotizadorHome({
               <Truck size={20} />
             </div>
             <p className="muted-copy">Tractor de 3 ejes + araña de 3 ejes · 6 ejes en total. Una fila por cada paso de peaje, incluida la vuelta.</p>
-            {routeStops.length > 2 && <label>Inicio de la vuelta<select aria-label="Inicio de la vuelta" value={draft.returnFromStop ?? ''} onChange={event => updateDraft('returnFromStop', event.target.value === '' ? undefined : Number(event.target.value))}>
-              <option value="">Automático: desde la parada más alejada del origen</option>
-              {routeStops.slice(1,-1).map((stop,index) => <option key={index} value={index+1}>Desde parada {index+1}: {stop || 'Sin completar'}</option>)}
-              <option value="-1">Todo el recorrido es de ida</option>
-            </select></label>}
             {routeStatus && <p className="muted-copy route-status" role="status">{routeStatus}</p>}
             {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Se detectan automáticamente al completar el recorrido.' : 'Recorrido confirmado sin peajes.'}</p>}
             <p className="muted-copy"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Estaciones: © OpenStreetMap contributors (ODbL)</a>. Detección aproximada, editable.</p>
