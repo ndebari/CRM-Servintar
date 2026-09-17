@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';
+const {PGlite}=await import(process.env.CRM_PGLITE_MODULE||'@electric-sql/pglite');const db=new PGlite();
+try{
+ await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated;`);
+ const owner='11111111-1111-4111-8111-111111111111';
+ for(const file of ['crm-complete.sql','crm-cloud-activation.sql'])await db.exec(fs.readFileSync(new URL('../supabase/'+file,import.meta.url),'utf8'));
+ await db.exec(`insert into auth.users values('${owner}','ndebari@servintar.com.ar',now());`);
+ for(const file of ['crm-admin-access.sql','crm-client-access.sql','crm-additional-references.sql'])await db.exec(fs.readFileSync(new URL('../supabase/'+file,import.meta.url),'utf8'));
+ await db.exec(fs.readFileSync(new URL('../supabase/crm-additional-references.sql',import.meta.url),'utf8'));
+ await db.exec(`set role authenticated;set request.jwt.claim.sub='${owner}';`);
+ const read=async()=>(await db.query('select public.crm_read() as data')).rows[0].data;
+ const plain=items=>items.map(({id,name,description,kind,amount})=>({id,name,description,kind,amount}));
+ const saveCatalog=async(items,expected)=>db.query('select public.crm_save_catalog($1,$2,$3)',['additionals',items,expected]);
+ const fixed={id:'wait',name:'Demora',description:'',kind:'fixed',amount:1000};const pct={id:'insurance',name:'Seguro',description:'',kind:'percent',amount:5};
+ await saveCatalog([fixed,pct],plain((await read()).additionals));
+ const original=(await read()).additionals;assert.ok(original[0].valueCreatedAt);
+ const {cost_month:month,cost_year:year}=(await db.query("select extract(month from now() at time zone 'America/Argentina/Buenos_Aires')::integer as cost_month,extract(year from now() at time zone 'America/Argentina/Buenos_Aires')::integer as cost_year")).rows[0];
+ const lines=[{id:'a',name:'A',daySourceValue:100,dayFadeeacIndex:10,kmSourceValue:300,kmFadeeacIndex:20,allocation:{perDay:true,perKm:true}},{id:'unused',name:'Ignorado',daySourceValue:999999,dayFadeeacIndex:500,kmSourceValue:0,kmFadeeacIndex:0,allocation:{perDay:false,perKm:false}}];
+ const saveCosts=async(items,m=month,y=year)=>db.query('select public.crm_save_costs($1,$2,$3)',[m,y,items]);
+ await saveCosts(lines);let current=(await read()).additionals;
+ assert.equal(current[0].amount,1175);assert.equal(current[1].amount,5);assert.equal(current[0].valueCreatedAt,original[0].valueCreatedAt);assert.ok(current[0].lastAdjustmentMonth);
+ await saveCosts(lines);assert.equal((await read()).additionals[0].amount,1175);
+ await assert.rejects(saveCatalog([fixed,pct],plain(original)),/actualización de costos/);
+ lines[0].kmFadeeacIndex=30;await saveCosts(lines);assert.equal((await read()).additionals[0].amount,1250);
+ current=plain((await read()).additionals);await saveCatalog([{...current[0],amount:2000},current[1]],current);
+ await saveCosts(lines);assert.equal((await read()).additionals[0].amount,2000);
+ lines[0].kmFadeeacIndex=40;await saveCosts(lines);assert.equal((await read()).additionals[0].amount,2120);
+ await saveCosts(lines,month===1?12:month-1,month===1?year-1:year);assert.equal((await read()).additionals[0].amount,2120);
+ const before=await read();const invalid=structuredClone(lines);invalid[0].dayFadeeacIndex=-200;invalid[0].kmFadeeacIndex=-200;
+ await assert.rejects(saveCosts(invalid));assert.deepEqual(await read(),before);
+ await assert.rejects(db.query('select public.crm_save_costs_without_additionals($1,$2,$3)',[month,year,lines]),/permission denied/);
+ await db.exec('reset role;set role anon');await assert.rejects(db.query('select public.crm_read()'),/permission denied/);
+ console.log('PASS: referencias con fecha, ajuste ponderado 17,5%, porcentajes estables, reintentos sin duplicar, correcciones mensuales, cambios manuales, histórico y atomicidad.');
+}catch(error){console.error(error.message);console.error(error.where||'');process.exitCode=1;}finally{await db.close();}

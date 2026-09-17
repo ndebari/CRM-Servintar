@@ -1,4 +1,5 @@
 import { SuppliersModule } from './SuppliersModule';
+import { weightedCostAdjustment } from './costAdjustment';
 import { SessionControls } from './SessionControls';
 import { quoteNumber } from './quoteLifecycle';
 import { QuotesModule } from './QuotesModule';
@@ -341,7 +342,7 @@ function App() {
   const saveMonthlySnapshot = async () => {
     try {
       await crmRpc('crm_save_costs',{p_month:months.indexOf(month)+1,p_year:Number(year),p_lines:costLines});
-      await loadMonthlyCostStructures();setLookupMonth(month);setLookupYear(year);setIsCostEditing(false);setSaveStatus('Guardado en Supabase correctamente.');
+      await loadMonthlyCostStructures();await refreshDatabase();setLookupMonth(month);setLookupYear(year);setIsCostEditing(false);setSaveStatus('Costos y referencias de adicionales guardados. Ajuste ponderado: '+weightedCostAdjustment(costLines).toFixed(2)+'%.');
     } catch(error) {setSaveStatus(error instanceof Error?error.message:'No se pudo guardar en Supabase.');}
   };
 
@@ -486,6 +487,7 @@ function CostStructure({
       <SessionControls /></header>
 
       <section className="metric-grid" aria-label="Totales de estructura">
+        <Metric label="Ajuste de adicionales ($)" value={weightedCostAdjustment(costLines).toFixed(2)+'%'} hint="Índice ponderado por los importes base marcados por día y por km. Los porcentajes no cambian." />
         <Metric label="Mes vigente" value={`${month} ${year}`} hint={isCurrentMonthReady ? 'Habilitado para cotizar' : 'Pendiente de guardar'} />
         <Metric label="Costo por dia" value={currency.format(totals.perDay)} hint="Items marcados por dia" />
         <Metric

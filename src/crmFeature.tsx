@@ -149,7 +149,7 @@ export type CostTotals = {
   perKm: number;
 };
 
-export type AdditionalDefinition = { id: string; name: string; description: string; kind: 'fixed' | 'percent'; amount?: number };
+export type AdditionalDefinition = { id: string; name: string; description: string; kind: 'fixed' | 'percent'; amount?: number; valueCreatedAt?: string | null; valueUpdatedAt?: string | null; lastAdjustmentMonth?: string | null };
 
 export function createAdditionalSelection(definition: AdditionalDefinition, previousAmount?: number): QuoteAdditionalSelection {
   return { id: 'catalog:' + definition.id, catalogId: definition.id, name: definition.name,
@@ -375,9 +375,9 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       ? 'Sin adicionales previstos.'
       : draft.additionals
           .map((item) => {
-            const netAmount = calculateAdditionalAmount(item, baseAmount);
+            const netAmount = calculateAdditionalAmount(item, totalAmount);
             const discountText = item.discountPercent > 0 ? ` con bonificacion del ${item.discountPercent}%` : '';
-            return `- ${item.name}: ${currency.format(netAmount)}${item.kind === "percent" ? ` (${item.amount}% del transporte base)` : ""}${discountText}${item.description ? ` — ${item.description}` : ""}`;
+            return `- ${item.name}: ${currency.format(netAmount)}${item.kind === "percent" ? ` (${item.amount}% de la tarifa de transporte)` : ""}${discountText}${item.description ? ` — ${item.description}` : ""}`;
           })
           .join('\n');
 
@@ -1033,6 +1033,7 @@ export function CotizadorHome({
           </section>
         </section>
         <section hidden={stage!==4} aria-label="Etapa de adicionales">
+          <p className="muted-copy">Los porcentajes se calculan sobre la tarifa cotizada de transporte, con costos, utilidad y redondeo aplicados.</p>
           <div className="additional-list">
             {additionalRows.length === 0 ? (
               <p className="muted-copy">Creá los adicionales en ABM → Adicionales.</p>
@@ -1090,7 +1091,7 @@ export function CotizadorHome({
           <p>Ajuste por redondeo: {roundedTariff === null || quoteTariff === null ? 'Pendiente' : exactCurrency(roundedTariff-quoteTariff)}</p>
           <div className="toll-total"><span>Tarifa final</span><strong>{roundedTariff === null ? 'Pendiente' : exactCurrency(roundedTariff)}</strong></div></div>
           <div><h3>Peajes incluidos</h3>{getTollGroups(draft).map(group => <div key={group.id}><h4>{group.title}</h4>{!group.rows.length ? <p>Sin peajes.</p> : <ul>{group.rows.map(({toll}) => <li key={toll.id}>{toll.name} · {toll.locality} · {toll.travelSense || 'Sentido sin informar'} — {toll.amount === null ? 'Pendiente' : exactCurrency(toll.amount)}</li>)}</ul>}</div>)}
-          <h3>Adicionales a demanda</h3><p>No incluidos en el total. Se cobran solo si se producen.</p>{!draft.additionals.length ? <p>Sin adicionales.</p> : <ul className="review-additionals">{draft.additionals.map(item => <li key={item.id}><strong>{item.name} — {exactCurrency(calculateAdditionalAmount(item,baseAmount))}</strong><p>{item.kind==='percent' ? item.amount+'% del transporte' : exactCurrency(item.amount)} · Bonificación {item.discountPercent}%</p>{item.description && <p>{item.description}</p>}</li>)}</ul>}</div></div>
+          <h3>Adicionales a demanda</h3><p>No incluidos en el total. Se cobran solo si se producen.</p>{!draft.additionals.length ? <p>Sin adicionales.</p> : <ul className="review-additionals">{draft.additionals.map(item => <li key={item.id}><strong>{item.name} — {exactCurrency(calculateAdditionalAmount(item,roundedTariff ?? 0))}</strong><p>{item.kind==='percent' ? item.amount+'% del transporte' : exactCurrency(item.amount)} · Bonificación {item.discountPercent}%</p>{item.description && <p>{item.description}</p>}</li>)}</ul>}</div></div>
         </section>
       </div>
       <footer className="wizard-footer">

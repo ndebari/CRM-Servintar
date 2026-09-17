@@ -271,11 +271,13 @@ test('conditional additionals retain discounted amounts and conditions without a
  assert.equal(calculateAdditionalAmount(draft.additionals[0],15000),1200);
  const quote=buildPreparedQuote(draft,[],{perDay:5000,perKm:100});
  assert.equal(quote.amount,(15000+12000)/0.8);
- assert.match(quote.text,/10% del transporte base/);
+ assert.match(quote.text,/10% de la tarifa de transporte/);
+ assert.ok(quote.text.includes(new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(2700)));
+ draft.roundingUnit=1000;const rounded=buildPreparedQuote(draft,[],{perDay:5000,perKm:100});assert.equal(rounded.amount,34000);assert.ok(rounded.text.includes(new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(2720)));
  assert.match(quote.text,/Cobertura adicional/);
  assert.match(quote.text,/no incluidos en el total; se cobran solo si se producen/);
  assert.deepEqual(quote.draft.additionals,draft.additionals);
- draft.distanceKm=200;
+ draft.roundingUnit=0;draft.distanceKm=200;
  assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,(25000+12000)/0.8);
 });
 
