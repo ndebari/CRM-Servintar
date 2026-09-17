@@ -21,7 +21,7 @@ export function AdditionalsModule({ catalog, onChange, status }: {
     }
   };
   return <>
-    <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>Adicionales</h1><p>Administrá los conceptos disponibles en el cotizador.</p></div></header>
+    <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>Adicionales</h1><p className="page-description">Administrá los conceptos disponibles en el cotizador.</p></div></header>
     <section className="panel">
       <h2>{existing ? 'Editar adicional' : 'Nuevo adicional'}</h2>
       <form onSubmit={save}>
@@ -40,7 +40,7 @@ export function AdditionalsModule({ catalog, onChange, status }: {
     <section className="panel"><h2>Catálogo de adicionales</h2>
       {removed && <p role="status">Se quitó {removed.name}. <button className="ghost-button" onClick={() => {if(onChange([...catalog, removed]))setRemoved(null);}}>Deshacer baja</button></p>}
       {!catalog.length && <p>No hay adicionales. Creá el primero con el formulario.</p>}
-      <div className="additional-list">{catalog.map(item => <article className="additional-row" key={item.id}>
+      <div className="additional-list">{catalog.map(item => <article className="additional-row catalog-row" key={item.id}>
         <div><strong>{item.name}</strong><p>{item.description || 'Sin descripción'}</p></div>
         <span>{item.kind === 'percent' ? '% del transporte' : '$ fijo'}</span>
         <button className="ghost-button" aria-label={'Editar adicional ' + item.name} onClick={() => {setEditing({...item});setError('');}}>Editar</button>
@@ -49,3 +49,4 @@ export function AdditionalsModule({ catalog, onChange, status }: {
     </section>
   </>;
 }
+
