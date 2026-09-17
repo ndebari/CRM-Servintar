@@ -25,8 +25,9 @@ export function AbmModule({ additionalCatalog, onAdditionalsChange, additionalSt
     if (!await onClientTypesChange(editing === null ? [...clientTypes, value] : clientTypes.map(type => type === editing ? value : type), editing === null ? undefined : { from: editing, to: value })) { setMessage('No se pudo guardar en Supabase.'); return; }
     setName(''); setEditing(null); setMessage('Tipo de cliente guardado.');
   };
-  return <>
+  return <div className="module-frame">
     <header className="topbar"><div><h1>ABM</h1></div><SessionControls /></header>
+<div className="module-scroll">
     {!admin?<p>La administración de usuarios y catálogos está disponible para el administrador.</p>:<><nav className="abm-navigation" aria-label="Catálogos ABM">
       <button className={section === 'additionals' ? 'primary-button' : 'ghost-button'} aria-pressed={section === 'additionals'} onClick={() => setSection('additionals')}>Adicionales</button>
       <button className={section === 'types' ? 'primary-button' : 'ghost-button'} aria-pressed={section === 'types'} onClick={() => setSection('types')}>Tipos de cliente</button>
@@ -52,5 +53,5 @@ export function AbmModule({ additionalCatalog, onAdditionalsChange, additionalSt
         })}</div>
       </section>
     </>}</>}
-  </>;
+  </div></div>;
 }

@@ -478,13 +478,14 @@ function CostStructure({
   const isLocked = isCurrentMonthReady && !isCostEditing;
 
   return (
-    <>
+    <div className="module-frame">
       <header className="topbar">
         <div>
           
           <h1>Estructura de costos</h1>
         </div>
       <SessionControls /></header>
+      <div className="module-scroll">
 
       <section className="metric-grid" aria-label="Totales de estructura">
         <Metric label="Ajuste de adicionales ($)" value={weightedCostAdjustment(costLines).toFixed(2)+'%'} hint="Índice ponderado por los importes base marcados por día y por km. Los porcentajes no cambian." />
@@ -681,7 +682,8 @@ function CostStructure({
         </div>
 
       </section>
-    </>
+      </div>
+    </div>
   );
 }
 

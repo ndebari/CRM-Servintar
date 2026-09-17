@@ -21,8 +21,9 @@ export function QuotesModule({ clients, quotes, priceList = false, onChange, onR
  const family=selected ? quotes.filter(q=>(q.rootId || q.id)===(selected.rootId || selected.id)).sort((a,b)=>(a.revision || 0)-(b.revision || 0)) : [];
  const open=(q:PreparedQuote)=>{setSelectedId(q.id);setClientId(q.clientId);setContactKey('');setError('');};
  const change=async(action:'send'|'approve')=>{if(!selected)return;setBusy(true);setError('');try{await onChange(selected.id,action,contactKey);}catch(e){setError(e instanceof Error?e.message:'No se pudo guardar el estado.');}finally{setBusy(false);}};
- return <>
+ return <div className="module-frame">
   <header className="topbar"><div><h1>{priceList?'Tarifas vigentes':'Cotizaciones'}</h1></div><SessionControls /></header>
+<div className="module-scroll">
   <section className="panel"><div className="form-grid">
    <label>Cliente<select value={clientId} onChange={e=>{setClientId(e.target.value);setSelectedId('');setError('');}}><option value="">Seleccionar cliente</option>{[...options].map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
    <label>Creada desde<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
@@ -44,5 +45,5 @@ export function QuotesModule({ clients, quotes, priceList = false, onChange, onR
    {selected.state==='Enviada / pendiente' && <div className="quote-family"><button className="primary-button" type="button" disabled={busy} onClick={()=>void change('approve')}>Aprobar y pasar a lista de precios</button><button className="ghost-button" type="button" disabled={busy || !selected.draft} onClick={()=>onRequote(selected)}>Recotizar</button>{!selected.draft && <p>Este registro antiguo no conserva los datos del cotizador.</p>}</div>}
    <pre className="quote-record-text">{selected.text}</pre>
   </section>}
- </>;
+ </div></div>;
 }

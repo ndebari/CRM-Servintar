@@ -123,8 +123,12 @@ a,.client-name-button,.truck-profile summary { color: var(--accent-ink); }
 }
 
 .workspace:has(.topbar) { padding-top: 24px; }
-/* Keep every module header above its scrolling content, including the quote wizard. */
-.workspace .topbar { position: sticky; top: 0; z-index: 20; align-self: start; }
+/* The header occupies its own row; only the content below it scrolls. */
+.workspace { display: flex; flex-direction: column; overflow: hidden; }
+.module-frame { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 22px; flex: 1; min-height: 0; min-width: 0; }
+.workspace .topbar { position: static; margin: 0; }
+.module-scroll { overflow: auto; min-height: 0; min-width: 0; display: grid; align-content: start; gap: 22px; overscroll-behavior: contain; scroll-padding: 16px; padding: 4px 4px 20px; }
+.module-scroll.quote-wizard { gap: 24px; }
 .topbar-actions { margin-left: auto; justify-content: flex-end; flex-wrap: wrap; }
 .topbar-actions .header-session { margin-left: 0; }
 .topbar-actions > .primary-button { background: var(--sun); color: var(--sun-ink); min-height: 38px; font-size: .78rem; }

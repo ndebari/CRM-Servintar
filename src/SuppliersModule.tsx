@@ -52,8 +52,9 @@ export function SuppliersModule({prices=false}:{prices?:boolean}){
  if(loading)return <p>Cargando proveedores…</p>;
  return <>
  {error&&<p role="alert">{error} <button type="button" className="ghost-button" disabled={saving} onClick={()=>{if(discard()){setDraft(null);setError('');void load().catch(e=>setError(e.message));}}}>Recargar</button></p>}
- {!prices?<ClientsModule supplierMode clients={data.suppliers.filter(s=>!s.deletedAt)} clientTypes={['Fletero','Otro proveedor']} onSaveClient={saveSupplier} onDeleteClient={deleteSupplier}/>:<>
+ {!prices?<ClientsModule supplierMode clients={data.suppliers.filter(s=>!s.deletedAt)} clientTypes={['Fletero','Otro proveedor']} onSaveClient={saveSupplier} onDeleteClient={deleteSupplier}/>:<div className="module-frame">
  <header className="topbar"><div><h1>Precios fleteros</h1></div><SessionControls/></header>
+<div className="module-scroll">
  <section className="panel"><div className="form-grid">
  <label>Fletero<select value={supplierId} disabled={saving} onChange={e=>{if(discard()){setSupplierId(e.target.value);setDraft(null);setVersion('');setNotice('');setError('');}}}><option value="">Seleccionar nombre de fantasía</option>{data.suppliers.filter(s=>s.type==='Fletero'||data.prices.some(p=>p.supplierId===s.id)).map(s=><option key={s.id} value={s.id}>{s.alias}{s.deletedAt?' (dado de baja)':s.active===false?' (inactivo)':''}</option>)}</select></label>
  <label>Consultar mes<input type="month" value={month} min="2000-01" max={argentinaToday().slice(0,7)} disabled={saving} onChange={e=>{if(e.target.value&&discard()){setMonth(e.target.value);setDraft(null);setVersion('');setNotice('');}}}/></label>
@@ -79,6 +80,6 @@ export function SuppliersModule({prices=false}:{prices?:boolean}){
  {!displayed.establishedOn.startsWith(month)&&<p>En este mes continuaba vigente la lista establecida el {displayDate(displayed.establishedOn)}.</p>}
  <div className="freight-table-scroll"><table className="freight-table"><thead><tr><th>Origen</th><th>Destino</th><th>Servicio</th><th>Unidad</th><th>Tarifa</th></tr></thead><tbody>{displayed.lines.map((line,i)=><tr key={line.id||i}><td>{line.origin||'—'}</td><td>{line.destination||'—'}</td><td>{line.service}</td><td>{line.unit}</td><td>{new Intl.NumberFormat('es-AR',{style:'currency',currency:displayed.currency}).format(line.amount)}</td></tr>)}</tbody></table></div>{displayed.notes&&<p className="freight-notes">{displayed.notes}</p>}</>:<p>No hay una lista vigente para este proveedor en el mes seleccionado.</p>}
  </section>}
- </>}
+ </div></div>}
  </>;
 }

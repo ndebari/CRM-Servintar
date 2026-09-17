@@ -804,8 +804,9 @@ export function CotizadorHome({
   const changeStage = (next: number) => { setSaveError(''); setStage(next); };
 
   return (
-    <div className="quote-wizard">
+    <div className="module-frame">
       <header className="topbar quote-topbar"><div><h1>Cotizador</h1></div><SessionControls /></header>
+<div className="module-scroll quote-wizard">
       <nav className="quote-steps" aria-label="Etapas del cotizador">{quoteStages.map((label,index) => <button key={label} type="button" aria-current={stage===index ? 'step' : undefined} disabled={index>stage} onClick={() => changeStage(index)}><span>{index+1}</span>{label}</button>)}</nav>
       <div className="panel wizard-panel">
         <div className="panel-header"><h2 ref={stageHeading} tabIndex={-1}>{quoteStages[stage]}</h2><span>{stage+1} / 6</span></div>
@@ -1100,6 +1101,7 @@ export function CotizadorHome({
         {stage<5 ? <button className="primary-button" type="button" disabled={Boolean(stageErrors[stage])} onClick={() => changeStage(stage+1)}>Siguiente</button>
           : <button className="primary-button" type="button" disabled={!canPrepare || isSaving} onClick={async () => {setIsSaving(true); try {setSaveError(await onPrepareQuote() || '');} catch(error) {setSaveError(error instanceof Error ? error.message : 'No se pudo guardar la cotización.');} finally {setIsSaving(false);}}}><Save size={20} /> Guardar</button>}
       </footer>
+</div>
     </div>
   );
 }
@@ -1189,7 +1191,7 @@ export function ClientsModule({
   };
 
   return (
-    <>
+    <div className="module-frame">
       <header className="topbar">
         <div>
           
@@ -1201,6 +1203,7 @@ export function ClientsModule({
           {supplierMode?'Nuevo proveedor':'Nuevo cliente'}
         </button>}
       <SessionControls /></div></header>
+<div className="module-scroll">
 
 
       {showDetails && <>
@@ -1278,7 +1281,7 @@ export function ClientsModule({
             </tr>)}</tbody>
           </table></div>}
       </section>}
-    </>
+    </div></div>
   );
 }
 
