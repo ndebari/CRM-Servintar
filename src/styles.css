@@ -1290,6 +1290,15 @@ a { color: #125da8; text-underline-offset: 3px; }
 .header-session-identity { font-size: .85rem; overflow-wrap: anywhere; }
 .header-session-identity small { display: block; font-size: .75rem; opacity: .85; }
 .header-session .ghost-button { white-space: nowrap; padding: 9px 12px; }
+.freight-table-scroll { overflow-x: auto; margin: 20px 0; }
+.freight-table { width: 100%; border-collapse: collapse; text-align: left; }
+.freight-table th, .freight-table td { padding: 12px; border-bottom: 1px solid #d5e2eb; }
+.freight-table input { min-width: 120px; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #bdcfdd; border-radius: 8px; font: inherit; }
+.freight-editor { border: 0; padding: 0; margin: 0; min-width: 0; }
+.freight-editor > label { display: grid; gap: 8px; margin: 18px 0; }
+.freight-editor textarea { padding: 12px; min-height: 85px; border: 1px solid #bdcfdd; border-radius: 8px; font: inherit; }
+.freight-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.freight-notes { white-space: pre-wrap; }
 .quote-topbar .header-session { color: #fff; }
 .quote-topbar .header-session .ghost-button { color: #fff; border-color: #ffffff70; background: #ffffff12; }
 .quote-topbar .header-session .ghost-button:hover { background: #ffffff28; }

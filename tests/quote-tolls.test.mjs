@@ -10,7 +10,9 @@ after(() => rm(temp, { recursive: true, force: true }));
 const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
 const catalogUrl = new URL('../netlify/lib/toll-operators.json', import.meta.url).href;
-await writeFile(`${temp}/quote.mjs`, compiled.outputText.replace("'../netlify/lib/toll-operators.json'", JSON.stringify(catalogUrl) + " with { type: 'json' }"));
+const controls = await readFile(new URL('../src/SessionControls.tsx', import.meta.url), 'utf8');
+await writeFile(`${temp}/SessionControls.mjs`, ts.transpileModule(controls, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText);
+await writeFile(`${temp}/quote.mjs`, compiled.outputText.replace("'./SessionControls'", "'./SessionControls.mjs'").replace("'../netlify/lib/toll-operators.json'", JSON.stringify(catalogUrl) + " with { type: 'json' }"));
 const { validateCuit, formatCuit, formatPlaceLabel, getQuoteStageErrors, getClientContacts, roundQuoteTariff, initialClients, BERISSO_ADDRESS, getRouteStops, createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
 
 test('selected places retain business names and operation descriptions are optional and saved', () => {
