@@ -1194,11 +1194,13 @@ export function ClientsModule({
           <p className="eyebrow">Modulo</p>
           <h1>{supplierMode?'Proveedores':'Clientes'}</h1>
         </div>
+        <div className="topbar-actions">
         {(supplierMode||isAdministrator) && <button className="primary-button" onClick={() => openClient(createEmptyClient(clientTypes[0] ?? ''))} type="button">
           <Building2 size={18} />
           {supplierMode?'Nuevo proveedor':'Nuevo cliente'}
         </button>}
-      <SessionControls /></header>
+      <SessionControls /></div></header>
+
 
       {showDetails && <>
       <button className="ghost-button" type="button" onClick={() => { setShowDetails(false); setClientError(''); }}>Volver al listado</button>
