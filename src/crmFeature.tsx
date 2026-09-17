@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import operatorCatalog from '../netlify/lib/toll-operators.json';
 import {
   Building2,
   ClipboardList,
-  FileSpreadsheet,
   FileText,
   Plus,
   Save,
@@ -146,6 +146,8 @@ export type QuoteAdditionalSelection = {
 export type RouteToll = {
   id: string; name: string; locality: string; road: string; province: string;
   amount: number | null; source: 'pending' | 'automatic' | 'official' | 'manual';
+  payment?: "" | "tag" | "cash" | "electronic";
+  journey?: "outbound" | "return";
   operator?: string; period?: string; direction?: string; stationSourceUrl?: string;
   sourceUrl?: string; sourcePage?: string; category?: string; checkedAt?: string; lookupMessage?: string;
 };
@@ -168,12 +170,13 @@ export type TransportQuoteDraft = {
   isRoundTrip: boolean;
   distanceKm: number;
   requiredDays: number;
-  utilityPercent: number;
+  utilityPercent: number | "";
   tolls: RouteToll[];
   tollListStatus: "pending" | "detected" | "manual";
   tollRouteKey: string;
   truck: { tractorAxles: number; height: number; weight: number; length: number };
-  tollPayment: "" | "tag" | "cash";
+  /** Legacy payment, used only for existing rows without their own selection. */
+  tollPayment: "" | "tag" | "cash" | "electronic";
   state: QuoteStatus;
   requiredAction: string;
   additionals: QuoteAdditionalSelection[];
@@ -272,10 +275,12 @@ export function calculateRequiredDays(distanceKm: number) {
   return Math.max(1, Math.ceil(distanceKm / 800));
 }
 
-function calculateTariffFromCost(cost: number, utilityPercent: number) {
-  if (utilityPercent >= 100) {
-    return cost;
-  }
+export function isValidUtility(value: number | ''): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value < 100;
+}
+
+function calculateTariffFromCost(cost: number, utilityPercent: number | '') {
+  if (!isValidUtility(utilityPercent)) throw new Error('Completá la utilidad con un valor entre 0 y menos de 100. Podés ingresar 0.');
 
   return cost / ((100 - utilityPercent) / 100);
 }
@@ -330,7 +335,7 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       '',
       `Transporte base: ${currency.format(baseAmount)}`,
       "Peajes · tractor 3 ejes + araña 3 ejes:",
-      ...draft.tolls.map((toll, index) => "- Paso " + (index + 1) + ": " + toll.name + " — " + toll.locality + ": " + currency.format(toll.amount!) + (toll.source === "manual" ? " (manual)" : "")),
+      ...draft.tolls.map((toll, index) => "- " + (toll.journey === "return" ? "Vuelta · " : toll.journey === "outbound" || !draft.isRoundTrip ? "Ida · " : "") + "Paso " + (index + 1) + ": " + toll.name + " — " + toll.locality + ": " + currency.format(toll.amount!) + (toll.source === "manual" ? " (manual)" : "")),
       "Total peajes: " + currency.format(tollSummary.total),
       'Adicionales:',
       additionalsText,
@@ -400,10 +405,22 @@ export function summarizeTolls(draft: TransportQuoteDraft) {
   };
 }
 
+
+export function getTollGroups(draft: Pick<TransportQuoteDraft, 'tolls' | 'isRoundTrip'>) {
+  const rows = draft.tolls.map((toll, index) => ({ toll, index }));
+  const groups = [{ id: 'outbound', title: 'Peajes de ida', rows: rows.filter(({ toll }) => toll.journey === 'outbound' || (!toll.journey && !draft.isRoundTrip)) }];
+  if (draft.isRoundTrip || rows.some(({ toll }) => toll.journey === 'return')) {
+    groups.push({ id: 'return', title: 'Peajes de vuelta', rows: rows.filter(({ toll }) => toll.journey === 'return') });
+  }
+  const unknown = rows.filter(({ toll }) => !toll.journey && draft.isRoundTrip);
+  if (unknown.length) groups.push({ id: 'unknown', title: 'Peajes sin tramo identificado', rows: unknown });
+  return groups;
+}
+
 export function mergeRouteTolls(incoming: RouteToll[], previous: RouteToll[]) {
   const merged = incoming.map(toll => {
     const old = previous.find(item => item.id === toll.id);
-    return old?.source === 'manual' || old?.source === 'official' ? { ...toll, ...old } : toll;
+    return old ? { ...toll, ...old, journey: toll.journey ?? old.journey } : toll;
   });
   return [...merged, ...previous.filter(toll => toll.id.startsWith('manual:') && !merged.some(item => item.id === toll.id))];
 }
@@ -413,7 +430,7 @@ export function getTruckRouteKey(draft: TransportQuoteDraft) {
 }
 
 export function calculateGoogleRoute(stops: string[]) {
-  return new Promise<{ distanceKm: number; path: number[][] }>((resolve, reject) => {
+  return new Promise<{ distanceKm: number; path: number[][]; returnStartIndex: number }>((resolve, reject) => {
     if (!window.google?.maps?.DirectionsService) {
       reject(new Error('Google Directions is not available'));
       return;
@@ -439,8 +456,10 @@ export function calculateGoogleRoute(stops: string[]) {
 
         if (result.routes[0].legs.length !== stops.length - 1 || result.routes[0].legs.some(leg => !Number.isFinite(leg.distance?.value) || (leg.distance?.value ?? -1) < 0)) { reject(new Error('Incomplete route distance')); return; }
         const meters = result.routes[0].legs.reduce((total, leg) => total + (leg.distance?.value ?? 0), 0);
-        const path = result.routes[0].legs.flatMap(leg => (leg.steps ?? []).flatMap(step => (step.path ?? []).map(point => [point.lat(), point.lng()])));
-        resolve({ distanceKm: Math.round(meters / 1000), path });
+        const legPaths = result.routes[0].legs.map(leg => (leg.steps ?? []).flatMap(step => (step.path ?? []).map(point => [point.lat(), point.lng()])));
+        const path = legPaths.flat();
+        const returnStartIndex = legPaths.slice(0, -1).reduce((count, points) => count + points.length, 0);
+        resolve({ distanceKm: Math.round(meters / 1000), path, returnStartIndex });
       }
     );
   });
@@ -456,8 +475,6 @@ export function CotizadorHome({
   draft,
   previousQuotes,
   onDraftChange,
-  onOpenClients,
-  onOpenCosts,
   onPrepareQuote,
   totals
 }: {
@@ -466,8 +483,6 @@ export function CotizadorHome({
   draft: TransportQuoteDraft;
   previousQuotes: PreparedQuote[];
   onDraftChange: (draft: TransportQuoteDraft) => void;
-  onOpenClients: () => void;
-  onOpenCosts: () => void;
   onPrepareQuote: () => void;
   totals: CostTotals;
 }) {
@@ -482,19 +497,19 @@ export function CotizadorHome({
   const tollSummary = summarizeTolls(draft);
   const tollReady = tollSummary.ready;
   const quoteCost = baseAmount + additionalsAmount + tollSummary.total;
-  const quoteTariff = calculateTariffFromCost(quoteCost, draft.utilityPercent);
+  const utilityValid = isValidUtility(draft.utilityPercent);
+  const quoteTariff = utilityValid ? calculateTariffFromCost(quoteCost, draft.utilityPercent) : null;
   const [routeStatus, setRouteStatus] = useState('');
 
   const latestDraft = useRef(draft);
   const latestOnChange = useRef(onDraftChange);
   latestDraft.current = draft;
   latestOnChange.current = onDraftChange;
-  const [routeRetry, setRouteRetry] = useState(0);
   const manualDistanceVersion = useRef(0);
   const distanceKey = JSON.stringify(routeStops);
   const previousDistanceKey = useRef(distanceKey);
   const [distanceStatus, setDistanceStatus] = useState('');
-  const googleRoute = useRef<{ key: string; distanceKm: number; path: number[][] } | null>(null);
+  const googleRoute = useRef<{ key: string; distanceKm: number; path: number[][]; returnStartIndex: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -507,8 +522,8 @@ export function CotizadorHome({
       latestOnChange.current(latestDraft.current);
     }
     if (routeStops.length < 2 || routeStops.some(stop => !stop)) {
-      setDistanceStatus('Completá los puntos del recorrido para calcular kilómetros con Google.');
-      setRouteStatus('Completá el recorrido para estimar estaciones sobre la ruta de Google.');
+      setDistanceStatus('');
+      setRouteStatus('');
       return;
     }
     const timeout = window.setTimeout(async () => {
@@ -529,7 +544,7 @@ export function CotizadorHome({
         setRouteStatus('Estimando estaciones sobre el trazado de Google…');
         const response = await fetch('/.netlify/functions/route-tolls', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-          body: JSON.stringify({ path: route.path })
+          body: JSON.stringify({ path: route.path, returnStartIndex: latestDraft.current.isRoundTrip ? route.returnStartIndex : undefined })
         });
         const result = await response.json();
         if (!response.ok || !Array.isArray(result.tolls)) throw new Error(result.error || 'No se pudo estimar el listado de peajes.');
@@ -540,24 +555,23 @@ export function CotizadorHome({
       } catch (error) {
         if (active) {
           if (googleRoute.current?.key !== distanceKey) setDistanceStatus('No se pudo calcular con Google. Podés cargar los kilómetros manualmente.');
-          setRouteStatus(error instanceof Error ? error.message : 'No se pudo estimar peajes. Reintentá o agregalos manualmente.');
+          setRouteStatus(error instanceof Error ? error.message : 'No se pudo estimar peajes. Revisá los datos del recorrido.');
         }
       }
     }, 700);
     return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
-  }, [distanceKey, routeRetry]);
+  }, [distanceKey]);
 
-  const [officialRetry, setOfficialRetry] = useState(0);
   const [officialStatus, setOfficialStatus] = useState('');
-  const officialLookupKey = JSON.stringify([draft.tollPayment, draft.tolls.map(toll => [toll.id, toll.name, toll.operator, toll.period, toll.direction, toll.source === 'manual' && toll.amount !== null])]);
+  const officialLookupKey = JSON.stringify([draft.tollPayment, draft.tolls.map(toll => [toll.id, toll.name, toll.operator, toll.period, toll.direction, toll.payment, toll.source === 'manual' && toll.amount !== null])]);
   useEffect(() => {
     const current = latestDraft.current;
     const candidates = current.tolls.filter(toll => toll.name.trim() && !(toll.source === 'manual' && toll.amount !== null));
-    if (!current.tolls.length) { setOfficialStatus('Para buscar precios, primero agregá los peajes del recorrido. La búsqueda de tarifas no detecta estaciones.'); return; }
+    if (!current.tolls.length) { setOfficialStatus('Las tarifas se consultarán automáticamente cuando se identifiquen los peajes del recorrido.'); return; }
     if (!candidates.length) { setOfficialStatus(current.tolls.some(toll => !toll.name.trim()) ? 'Completá el nombre del peaje para buscar su tarifa.' : 'Todos los importes son manuales. Vaciá el importe que quieras consultar; tus correcciones no se reemplazan.'); return; }
     let active = true;
     const controller = new AbortController();
-    const stamp = (toll: RouteToll) => JSON.stringify([toll.name, toll.operator, toll.period, toll.direction]);
+    const stamp = (toll: RouteToll) => JSON.stringify([toll.name, toll.operator, toll.period, toll.direction, toll.payment ?? current.tollPayment]);
     const timer = window.setTimeout(async () => {
       setOfficialStatus('Buscando publicaciones oficiales de las concesionarias…');
       const beforeLookup = latestDraft.current;
@@ -568,7 +582,7 @@ export function CotizadorHome({
       try {
         const response = await fetch('/.netlify/functions/official-tolls', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-          body: JSON.stringify({ axles: 6, payment: current.tollPayment, tolls: candidates.map(toll => ({ id: toll.id, name: toll.name, operator: toll.operator, period: toll.period, direction: toll.direction })) })
+          body: JSON.stringify({ axles: 6, tolls: candidates.map(toll => ({ id: toll.id, name: toll.name, operator: toll.operator, period: toll.period, direction: toll.direction, payment: toll.payment ?? current.tollPayment })) })
         });
         if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error('No se pudo consultar las publicaciones. Podés completar los importes manualmente.');
         const result = await response.json();
@@ -585,13 +599,19 @@ export function CotizadorHome({
             category: found.category, checkedAt: found.checkedAt, lookupMessage: found.lookupMessage };
         }) });
         const verified = result.tolls.filter((item: RouteToll) => item.source === 'official' && item.amount !== null).length;
-        setOfficialStatus(verified ? `${verified} tarifa(s) verificada(s). Revisá los campos pendientes debajo de cada peaje.` : 'No se obtuvo ningún importe. Revisá el motivo y los datos pendientes debajo de cada peaje.');
+        const pendingReasons = [...new Set<string>(result.tolls
+          .filter((item: RouteToll) => item.amount === null && item.lookupMessage)
+          .map((item: RouteToll) => item.lookupMessage as string))];
+        setOfficialStatus([
+          verified ? `${verified} tarifa(s) completada(s) automáticamente.` : '',
+          ...pendingReasons
+        ].filter(Boolean).join(' ') || 'No se obtuvo ningún importe. Revisá los datos de cada estación.');
       } catch (error) {
         if (active) setOfficialStatus(error instanceof Error ? error.message : 'No se pudo consultar las publicaciones.');
       }
     }, 800);
     return () => { active = false; controller.abort(); window.clearTimeout(timer); };
-  }, [officialLookupKey, officialRetry]);
+  }, [officialLookupKey]);
 
   const updateDraft = <K extends keyof TransportQuoteDraft>(field: K, value: TransportQuoteDraft[K]) => {
     onDraftChange({ ...draft, [field]: value });
@@ -639,7 +659,7 @@ export function CotizadorHome({
   };
 
   const canPrepare =
-    tollReady &&
+    tollReady && utilityValid &&
     Boolean(draft.clientId) &&
     draft.distanceKm > 0 &&
     draft.requiredDays > 0 &&
@@ -649,36 +669,20 @@ export function CotizadorHome({
 
   return (
     <>
-      <header className="topbar">
+      <header className="topbar quote-topbar">
         <div>
-          <p className="eyebrow">Gestión comercial</p>
           <h1>Cotizador</h1>
-          <p className="page-description">Cada viaje empieza con una buena cotización.</p>
-        </div>
-        <div className="topbar-actions">
-          <button className="ghost-button" onClick={onOpenClients} type="button">
-            <Users size={17} />
-            Clientes
-          </button>
-          <button className="ghost-button" onClick={onOpenCosts} type="button">
-            <FileSpreadsheet size={17} />
-            Costos
-          </button>
-          <button className="primary-button" disabled={!canPrepare} onClick={onPrepareQuote} type="button">
-            <FileText size={18} />
-            Preparar
-          </button>
+          <p className="page-description">Cada viaje comienza con una cotización bien hecha</p>
         </div>
       </header>
 
-      <p className="muted-copy route-status" role="status">{distanceStatus}</p>
       <section className="metric-grid" aria-label="Resumen de cotizacion">
         <Metric label="Cliente" value={selectedClient?.alias || 'Sin cliente'} hint={selectedClient?.businessName || 'Crear o seleccionar cliente'} />
         <Metric label="Kilometros" value={`${draft.distanceKm.toLocaleString('es-AR')} km`} hint={draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'} />
         <Metric label="Dias" value={`${draft.requiredDays}`} hint="800 km cada 24 horas" />
         <Metric label="Costo" value={currency.format(quoteCost)} hint={tollReady ? "Transporte + peajes + adicionales" : "Subtotal: peajes pendientes"} />
-        <Metric label="Utilidad" value={`${draft.utilityPercent}%`} hint="Sobre tarifa final" />
-        <Metric label="Tarifa" value={tollReady ? currency.format(quoteTariff) : "Pendiente"} hint={tollReady ? "Incluye peajes y utilidad" : "Completar peajes"} />
+        <Metric label="Utilidad" value={utilityValid ? `${draft.utilityPercent}%` : "Pendiente"} hint="Sobre tarifa final" />
+        <Metric label="Tarifa" value={tollReady && quoteTariff !== null ? currency.format(quoteTariff) : "Pendiente"} hint={!utilityValid ? "Completar utilidad (0 es válido)" : tollReady ? "Incluye peajes y utilidad" : "Completar peajes"} />
       </section>
 
       <section className="content-grid quote-builder-grid">
@@ -781,13 +785,18 @@ export function CotizadorHome({
             <label>
               Utilidad %
               <input
-                max="99"
+                max="99.99"
                 min="0"
                 step="0.01"
                 type="number"
+                aria-label="Utilidad %"
                 value={draft.utilityPercent}
-                onChange={(event) => updateDraft('utilityPercent', Number(event.target.value))}
+                required
+                aria-invalid={!utilityValid}
+                aria-describedby={!utilityValid ? 'utility-error' : undefined}
+                onChange={(event) => updateDraft('utilityPercent', event.target.value === '' ? '' : event.target.valueAsNumber)}
               />
+              {!utilityValid && <span id="utility-error" className="field-error" role="alert">Ingresá una utilidad entre 0 y menos de 100. Si no aplicás utilidad, escribí 0.</span>}
             </label>
             <label>
               Estado
@@ -806,32 +815,35 @@ export function CotizadorHome({
               </select>
             </label>
           </div>
+          {distanceStatus && <p className="muted-copy route-status" role="status">{distanceStatus}</p>}
           <section className="toll-section" aria-label="Peajes para camión">
             <div className="panel-header">
               <div><p className="eyebrow">Tránsito pesado</p><h2>Peajes del recorrido</h2></div>
               <Truck size={20} />
             </div>
             <p className="muted-copy">Tractor de 3 ejes + araña de 3 ejes · 6 ejes en total. Una fila por cada paso de peaje, incluida la vuelta.</p>
-            <div className="form-grid toll-fields">
-              <label>Pago de peajes
-                <select value={draft.tollPayment} onChange={(event) => updateDraft('tollPayment', event.target.value as TransportQuoteDraft['tollPayment'])}>
-                  <option value="">Seleccionar</option><option value="tag">TelePASE</option><option value="cash">Efectivo</option>
-                </select>
-              </label>
-              <button className="ghost-button" type="button" onClick={() => setRouteRetry(value => value + 1)}>Estimar estaciones con Google</button>
-              <button className="ghost-button" type="button" onClick={() => setOfficialRetry(value => value + 1)}>Buscar tarifas oficiales</button>
-              <button className="ghost-button" type="button" onClick={() => onDraftChange({ ...draft,
-                tolls: [...draft.tolls, { id: 'manual:' + crypto.randomUUID(), name: '', locality: '', road: '', province: '', amount: null, source: 'manual' }],
-                tollRouteKey: routeKey, tollListStatus: 'pending'
-              })}>Agregar peaje</button>
-            </div>
-            <p className="muted-copy route-status" role="status">{routeStatus}</p>
-            {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Consultá la ruta o cargá los peajes manualmente.' : 'Recorrido confirmado sin peajes.'}</p>}
+            {routeStatus && <p className="muted-copy route-status" role="status">{routeStatus}</p>}
+            {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Se detectan automáticamente al completar el recorrido.' : 'Recorrido confirmado sin peajes.'}</p>}
             <p className="muted-copy"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Estaciones: © OpenStreetMap contributors (ODbL)</a>. Detección aproximada, editable.</p>
-            <p className="muted-copy">Búsqueda en publicaciones de AUBASA y AUSOL. La concesionaria se reconoce por el nombre cuando es posible. Completá pago, sentido y horario de cada pasada. Otras estaciones quedan para carga manual.</p>
-            <p className="toll-source" role="status">{officialStatus}</p>
-            <div className="toll-list">
-              {draft.tolls.map((toll, index) => (
+            <p className="muted-copy">El precio se busca automáticamente al completar los datos de cada pasada. Catálogo nacional: {operatorCatalog.operators.length} operadores. Las tarifas de seis ejes sin verificar quedan pendientes.</p>
+            <details className="truck-profile">
+              <summary>Consultar concesionarias y fuentes oficiales</summary>
+              <p className="muted-copy">Revisado el {operatorCatalog.reviewedOn}. Las concesiones en transición requieren confirmar el operador vigente.</p>
+              {operatorCatalog.operators.map(operator => <p className="toll-source" key={operator.id}><a href={operator.page} target="_blank" rel="noreferrer">{operator.name}</a> · {operator.scope}{operator.notes ? ' · ' + operator.notes : ''}</p>)}
+              <h3>Adjudicaciones pendientes de confirmar operación</h3>
+              {operatorCatalog.transitions.map(item => <p className="toll-source" key={item.id}><a href={item.source} target="_blank" rel="noreferrer">{item.tramo}</a> · {item.adjudicatario}. {item.status}</p>)}
+              {operatorCatalog.unresolved.map(item => <p className="toll-source" key={item.tramo}><a href={item.source} target="_blank" rel="noreferrer">{item.tramo}</a> · {item.reason}</p>)}
+            </details>
+            <p className="toll-source tariff-lookup-status" role="status">{officialStatus}</p>
+            {getTollGroups(draft).map(group => (
+              <section className="toll-journey" key={group.id} aria-label={group.title}>
+                <div className="toll-journey-heading">
+                  <h3>{group.title}</h3>
+                  <span>{group.rows.length} {group.rows.length === 1 ? 'pasada' : 'pasadas'}</span>
+                </div>
+                {group.rows.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Sin estaciones identificadas todavía.' : 'Sin peajes registrados en este tramo.'}</p>}
+                <div className="toll-list">
+              {group.rows.map(({ toll, index }) => (
                 <div className="toll-card" key={toll.id}>
                   <div className="toll-card-heading"><strong>Paso {index + 1}</strong><span>{toll.source === 'official' ? 'Publicación oficial · 6 ejes' : toll.source === 'automatic' ? 'Tarifa estimada · 6 ejes' : toll.amount === null ? 'Importe pendiente' : 'Importe manual'}</span></div>
                   <div className="form-grid">
@@ -840,8 +852,11 @@ export function CotizadorHome({
                     <label>Importe (ARS)<input aria-label={'Importe del peaje ' + (index + 1)} type="number" min="0" step="0.01" placeholder="Completar tarifa" value={toll.amount ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, amount: event.target.value === '' ? null : Math.max(0, Number(event.target.value)), source: 'manual' } : item))} /></label>
                   </div>
                   <div className="form-grid">
+                    <label>Forma de pago en esta estación<select aria-label={'Pago del peaje ' + (index + 1)} value={toll.payment ?? draft.tollPayment} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, payment: event.target.value as NonNullable<RouteToll['payment']>, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))}>
+                      <option value="">Seleccionar</option><option value="tag">TelePASE</option><option value="cash">Efectivo</option><option value="electronic">Electrónico manual (QR / tarjeta)</option>
+                    </select></label>
                     <label>Concesionaria<select aria-label={'Concesionaria del peaje ' + (index + 1)} value={toll.operator ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, operator: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))}>
-                      <option value="">Seleccionar</option><option value="aubasa">AUBASA</option><option value="ausol">AUSOL · Acceso Norte</option><option value="other">Otra concesionaria</option>
+                      <option value="">Seleccionar</option>{operatorCatalog.operators.map(operator => <option key={operator.id} value={operator.id}>{operator.name}</option>)}<option value="other">Otra concesionaria</option>
                     </select></label>
                     <label>Horario del paso<select aria-label={'Horario del peaje ' + (index + 1)} value={toll.period ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, period: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))}>
                       <option value="">Confirmar</option><option value="normal">No pico</option><option value="peak">Pico</option>
@@ -852,13 +867,20 @@ export function CotizadorHome({
                   </div>
                   {toll.stationSourceUrl && <p className="toll-source"><a href={toll.stationSourceUrl} target="_blank" rel="noreferrer">Ver estación en el mapa</a> · Localidad aproximada: revisar</p>}
                   <p className="toll-source">{toll.lookupMessage}</p>
+                  {!toll.sourceUrl && toll.sourcePage && <p className="toll-source"><a href={toll.sourcePage} target="_blank" rel="noreferrer">Consultar fuente de la concesionaria</a> · Importe pendiente de verificación</p>}
                   {toll.sourceUrl && <p className="toll-source"><a href={toll.sourceUrl} target="_blank" rel="noreferrer">Ver publicación oficial</a> · Categoría {toll.category} · Consultada {toll.checkedAt ? new Date(toll.checkedAt).toLocaleString('es-AR') : ''}{toll.source === 'manual' ? ' · Importe corregido manualmente' : ''}</p>}
                   <div className="toll-card-heading"><small>{[toll.road, toll.province].filter(Boolean).join(' · ')}</small>
                     {<button className="ghost-button" type="button" aria-label={'Quitar peaje ' + (index + 1)} onClick={() => onDraftChange({ ...draft, tolls: draft.tolls.filter(item => item.id !== toll.id), tollListStatus: 'pending' })}>Quitar</button>}
                   </div>
                 </div>
               ))}
-            </div>
+                </div>
+                <div className="toll-journey-total">
+                  <span>{group.rows.some(({ toll }) => toll.amount === null) || draft.tollListStatus === 'pending' ? 'Subtotal cargado' : 'Total del tramo'}</span>
+                  <strong>{currency.format(group.rows.reduce((total, { toll }) => total + (toll.amount ?? 0), 0))}</strong>
+                </div>
+              </section>
+            ))}
             {draft.tollListStatus !== 'detected' && <label className="check-inline toll-confirm"><input type="checkbox" checked={draft.tollListStatus === 'manual'} onChange={event => updateDraft('tollListStatus', event.target.checked ? 'manual' : 'pending')} />{draft.tolls.length ? 'Confirmo que revisé todos los peajes estimados del recorrido' : 'Confirmo que este recorrido no tiene peajes'}</label>}
             <div className="toll-total" aria-live="polite"><span>{tollReady ? 'Total peajes' : 'Subtotal peajes cargados'}</span><strong>{currency.format(tollSummary.total)}</strong></div>
             {!tollReady && <p className="toll-source">{tollSummary.pending ? 'Falta completar ' + tollSummary.pending + ' peaje(s). La tarifa final se habilita cuando todos estén completos.' : 'Falta confirmar el listado del recorrido.'}</p>}
@@ -937,6 +959,12 @@ export function CotizadorHome({
           </div>
         </div>
       </section>
+      <div className="quote-submit">
+        <button className="primary-button" disabled={!canPrepare} onClick={onPrepareQuote} type="button">
+          <FileText size={18} />
+          Preparar cotización
+        </button>
+      </div>
     </>
   );
 }

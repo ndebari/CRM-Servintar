@@ -68,3 +68,13 @@ Vite incluye un middleware local para probar official-tolls. En Netlify la misma
 Este flujo reemplaza la integración anterior de TollGuru/HERE; ya no se consulta ni requiere su clave. La misma respuesta de Directions aporta kilómetros y la geometría detallada de cada paso. Se compara con un extracto de nodos OpenStreetMap (16/09/2026) en un margen de 18 m. Se agrupan cabinas cercanas y se conservan pasadas posteriores, incluida la vuelta. Es una estimación: puede incluir colectoras o no detectar estaciones faltantes; el usuario debe revisar y confirmar el listado. La localidad, cuando falta, es la población del mapa más cercana hasta 20 km; puede no ser la jurisdicción administrativa. No verifica restricciones de camiones.
 
 El catálogo es una instantánea, no una actualización automática: fuente OSM, licencia ODbL, copia descargable en `/toll-stations.json`. Incluye el rectángulo regional -55,-74,-21,-53, por lo que contiene puntos de países vecinos; solo se muestran los próximos a la ruta recibida. No se envía el recorrido a Overpass. La búsqueda oficial conserva la cobertura limitada AUBASA/AUSOL y deja otras tarifas pendientes.
+
+## Ampliación nacional (17/09/2026)
+
+El catálogo `netlify/lib/toll-operators.json` contiene 22 operadores identificados, sus fuentes oficiales y limitaciones, ocho adjudicaciones de la Etapa III y un pendiente explícito para Portuario Norte. No se considera un padrón exhaustivo certificado ni cobertura tarifaria completa. El cotizador permite seleccionar todos los operadores y consultar sus fuentes.
+
+Se agregaron ocho grupos tarifarios para seis operadores: Oeste, Pentavía, Autovía del Mercosur, Alto Delta, Caminos de las Sierras (manual) y Corresur. Se verifica el enlace al documento activo y su SHA-256; Oeste usa la imagen activa de su CMS, y Corresur verifica la sección completa de tarifas, incluyendo estaciones, categorías y formas de pago. No se utilizan importes ocultos ni tarifas ofertadas sin IVA.
+
+Los medios de pago son `tag`, `cash` y `electronic` (pago electrónico manual). No se sustituyen entre sí. Los nombres compartidos por varios operadores requieren selección explícita. No se equipara una tarifa pendiente a cero.
+
+Validación: 32 pruebas pasan con `node --test --test-isolation=none tests/*.test.mjs`; TypeScript sin errores. Consultas reales comprobaron los ocho grupos nuevos. El build Vite no pudo ejecutarse en este entorno por `spawn EPERM` de esbuild.

@@ -1,8 +1,20 @@
 import { createHash } from 'node:crypto';
 import publications from './verified-tariffs.json' with { type: 'json' };
+import operatorCatalog from './toll-operators.json' with { type: 'json' };
 
-export const normalizeStation = name => String(name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/^(?:estacion\s+(?:de\s+)?)?(?:peaje\s+)?/ , '').replace(/\s+/g, ' ').trim();
-const allowedHosts = new Set(['aubasa.com.ar', 'www.ausol.com.ar', 'back.ausol.com.ar']);
+export const normalizeStation = name => String(name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/["\u201c\u201d\u00ab\u00bb]/g, '').trim().replace(/^(?:estacion\s+(?:de\s+)?)?(?:peaje\s+)?/ , '').replace(/\s+/g, ' ').trim();
+const allowedHosts = new Set([...publications.flatMap(p => [new URL(p.page).hostname, new URL(p.document).hostname]), 'back.ausol.com.ar', 'back.auoeste.com.ar']);
+const paymentMethods = ['tag', 'cash', 'electronic'];
+
+export function publicationDigest(bytes, source) {
+  let content = bytes;
+  if (source.verification === 'corresur-section') {
+    const section = bytes.toString('utf8').match(/<h2>Cuadro tarifario<\/h2>([\s\S]*?)<\/section>/);
+    if (!section || !section[1].includes('tabla-tarifa-a') || !section[1].includes('tabla-tarifa-b')) throw new Error('Formato de cuadro tarifario nuevo.');
+    content = section[1];
+  }
+  return createHash('sha256').update(content).digest('hex');
+}
 
 // No arbitrary client URLs, redirect following, stale-price fallback or hidden CMS prices.
 export async function readOfficial(url, fetcher = fetch) {
@@ -24,14 +36,26 @@ export async function readOfficial(url, fetcher = fetch) {
 
 export function findPublication(toll, payment) {
   const stationMatches = publications.filter(p => p.stations.includes(normalizeStation(toll.name)));
-  const operators = [...new Set(stationMatches.map(p => p.operator))];
+  const operators = [...new Set([...stationMatches.map(p => p.operator), ...operatorCatalog.operators.filter(o => o.stations.includes(normalizeStation(toll.name))).map(o => o.id)])];
   const operator = toll.operator || (operators.length === 1 ? operators[0] : undefined);
-  if (!['tag', 'cash'].includes(payment)) return { operator, reason: 'Seleccioná TelePASE o efectivo en Pago de peajes.' };
   const matches = stationMatches.filter(p => p.operator === operator);
-  if (!matches.length) return { operator, reason: 'No hay una publicación verificada para esta concesionaria y estación. Cargá el importe manualmente.' };
+  if (!matches.length) {
+    const entry = operatorCatalog.operators.find(o => o.id === operator);
+    return { operator, sourcePage: entry?.page, reason: !operator && operators.length > 1
+      ? 'Hay estaciones con este nombre en varias concesionarias. Seleccioná la concesionaria del paso antes de calcular.'
+      : 'No hay una tarifa de seis ejes verificada para esta concesionaria y estación. Cargá el importe manualmente.' };
+  }
   const source = matches.find(p => p.direction === 'both' || p.direction === toll.direction);
-  if (!source) return { operator, reason: 'Seleccioná el sentido de paso por esta estación.' };
-  if (source.rates[payment].normal !== source.rates[payment].peak && !['normal', 'peak'].includes(toll.period)) return { operator, reason: 'Seleccioná horario pico o no pico para esta pasada.' };
+  if (source && paymentMethods.includes(payment) && !source.rates[payment]) return { operator, sourcePage: source.page, reason: 'Esta estación no tiene tarifa verificada para el medio de pago seleccionado. Consultá la fuente oficial o cargá el importe manualmente.' };
+  const missing = [];
+  if (!paymentMethods.includes(payment)) missing.push('forma de pago (TelePASE, efectivo o electrónico manual)');
+  if (!source) missing.push('sentido del paso');
+  const relevantSources = source ? [source] : matches;
+  const payments = paymentMethods.includes(payment) ? [payment] : paymentMethods;
+  if (!['normal', 'peak'].includes(toll.period) && relevantSources.some(p => payments.some(method => p.rates[method] && p.rates[method].normal !== p.rates[method].peak))) {
+    missing.push('horario (pico o no pico)');
+  }
+  if (missing.length) return { operator, reason: 'Para calcular el precio de ' + toll.name + ', seleccioná: ' + missing.join(', ') + '. El importe se completa automáticamente.' };
   return { source, operator };
 }
 
@@ -41,25 +65,30 @@ export async function searchOfficialTariffs(tolls, payment, fetcher = fetch) {
   const read = url => { if (!pending.has(url)) pending.set(url, readOfficial(url, fetcher)); return pending.get(url); };
   return Promise.all(tolls.map(async toll => {
     const base = { id: toll.id, amount: null, source: 'pending', checkedAt: new Date().toISOString() };
-    const { source, reason, operator } = findPublication(toll, payment);
+    const stationPayment = toll.payment ?? payment;
+    const { source, reason, operator, sourcePage } = findPublication(toll, stationPayment);
     base.operator = operator;
-    if (!source) return { ...base, lookupMessage: reason };
+    if (!source) return { ...base, sourcePage, lookupMessage: reason };
     try {
       let published = false;
-      if (source.operator === 'aubasa') {
+      if (source.operator === 'aubasa' || source.verification === 'linked-document') {
         const html = (await read(source.page)).toString('utf8');
         published = html.includes(source.document);
+      } else if (source.operator === 'ausa' || ['page', 'corresur-section'].includes(source.verification)) {
+        // The regulator publishes the complete tariff table in this document.
+        published = source.page === source.document;
       } else {
-        const page = JSON.parse((await read('https://back.ausol.com.ar/wp-json/wp/v2/pages/117')).toString('utf8'));
+        const cms = source.operator === 'oeste' ? 'https://back.auoeste.com.ar' : 'https://back.ausol.com.ar';
+        const page = JSON.parse((await read(cms + '/wp-json/wp/v2/pages/117')).toString('utf8'));
         const mediaId = page.acf?.imagen_de_la_tabla;
         if (page.acf?.mostrar_tabla_o_imagen !== 'imagen' || !Number.isSafeInteger(mediaId)) throw new Error('Formato de publicación nuevo.');
-        const media = JSON.parse((await read('https://back.ausol.com.ar/wp-json/wp/v2/media/' + mediaId)).toString('utf8'));
+        const media = JSON.parse((await read(cms + '/wp-json/wp/v2/media/' + mediaId)).toString('utf8'));
         published = media.source_url === source.document;
       }
       if (!published) throw new Error('La concesionaria cambió su publicación.');
       const bytes = await read(source.document);
-      if (createHash('sha256').update(bytes).digest('hex') !== source.sha256) throw new Error('El cuadro tarifario cambió y requiere revisión.');
-      return { ...base, amount: source.rates[payment][toll.period === 'peak' ? 'peak' : 'normal'], source: 'official', sourceUrl: source.document, sourcePage: source.page, category: source.category, lookupMessage: 'Publicación oficial verificada · 6 ejes · ARS' };
+      if (publicationDigest(bytes, source) !== source.sha256) throw new Error('El cuadro tarifario cambió y requiere revisión.');
+      return { ...base, amount: source.rates[stationPayment][toll.period === 'peak' ? 'peak' : 'normal'], source: 'official', sourceUrl: source.document, sourcePage: source.page, category: source.category, lookupMessage: 'Publicación oficial verificada · 6 ejes · ARS' };
     } catch {
       return { ...base, sourcePage: source.page, lookupMessage: 'No se pudo verificar la publicación vigente. El importe queda pendiente de carga manual.' };
     }

@@ -34,10 +34,19 @@ export function estimateCrossings(path, stations = catalog.stations) {
     const name = station.name || 'Peaje sin nombre (revisar)';
     const operator = findPublication({ name }, 'tag').operator;
     const coastal = operator === 'aubasa' && station.lat < -35;
-    return { id: 'osm:' + station.id + ':' + count, name, locality: station.locality || '', road: station.road || '', province: '', amount: null, source: 'pending', operator,
+    return { id: 'osm:' + station.id + ':' + count, name, locality: station.locality || '', road: station.road || '', province: '', amount: null, source: 'pending', payment: '', operator,
       direction: operator === 'aubasa' ? coastal ? 'both' : hit.direction : undefined,
       lookupMessage: 'Estación estimada sobre la ruta de Google. Revisá localidad, horario y tarifa.',
       stationSourceUrl: 'https://www.openstreetmap.org/node/' + station.id };
   });
 }
 export const catalogDate = catalog.date;
+
+export function estimateJourneyCrossings(path, returnStartIndex, stations = catalog.stations) {
+  const groups = returnStartIndex === undefined
+    ? [{ journey: 'outbound', path }]
+    : [{ journey: 'outbound', path: path.slice(0, returnStartIndex) }, { journey: 'return', path: path.slice(returnStartIndex) }];
+  return groups.flatMap(group => estimateCrossings(group.path, stations).map(toll => ({
+    ...toll, id: group.journey + ':' + toll.id, journey: group.journey
+  })));
+}

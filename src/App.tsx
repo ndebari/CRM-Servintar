@@ -446,7 +446,7 @@ function App() {
 
       </aside>
 
-      <section className="workspace">
+      <section className="workspace" key={view}>
         {view === 'cotizador' && (
           <CotizadorHome
             additionalCatalog={additionalCatalog}
@@ -454,8 +454,6 @@ function App() {
             draft={quoteDraft}
             previousQuotes={quotes}
             onDraftChange={setQuoteDraft}
-            onOpenClients={() => setView('clientes')}
-            onOpenCosts={() => setView('costos')}
             onPrepareQuote={prepareQuote}
             totals={totals}
           />
