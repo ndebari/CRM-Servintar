@@ -1,6 +1,5 @@
 import { SuppliersModule } from './SuppliersModule';
 import { SessionControls } from './SessionControls';
-import { ImportLocalData } from './ImportLocalData';
 import { quoteNumber } from './quoteLifecycle';
 import { QuotesModule } from './QuotesModule';
 import { readDatabase, storeQuote, changeQuote, storeClient, removeClient, saveRemoteTypes, saveRemoteAdditionals, crmRpc } from './quoteDatabase';
@@ -381,7 +380,6 @@ function App() {
       <section className="workspace" key={view}>
         {databaseError && <p role="alert">{databaseError} <button className="ghost-button" onClick={()=>void refreshDatabase().catch(()=>setDatabaseError('No se pudo conectar a Supabase.'))}>Reintentar</button></p>}
         {!databaseReady && !databaseError && <p>Cargando registros…</p>}
-        {(view==='cotizaciones' || view==='precios') && <p className="muted-copy">Registros compartidos en Supabase.</p>}
         {view==='cotizador' && revisionParent && <section className="panel"><strong>Recotización {quoteNumber(revisionParent.sequence!, Math.max(0,...quotes.filter(q=>(q.rootId || q.id)===(revisionParent.rootId || revisionParent.id)).map(q=>q.revision || 0))+1)}</strong><p>Origen: {revisionParent.number}. La versión se confirma al guardar.</p><button type="button" className="ghost-button" onClick={()=>{setRevisionParent(null);setQuoteDraft(createQuoteDraft(quoteDraft.clientId));}}>Cancelar recotización</button></section>}
         {view === 'cotizador' && (
           <CotizadorHome
@@ -394,7 +392,7 @@ function App() {
             totals={totals}
           />
         )}
-        {view === 'abm' && <><ImportLocalData onImported={refreshDatabase} /><AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} /></>}
+        {view === 'abm' && <><AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} /></>}
         {(view==='proveedores'||view==='fleteros')&&<SuppliersModule prices={view==='fleteros'}/>}
         {view === 'clientes' && (
           <ClientsModule
@@ -414,9 +412,7 @@ function App() {
             lookupYear={lookupYear}
             month={month}
             onAllocationChange={updateAllocation}
-            onAddLine={addCostLine}
-            onBack={() => setView('cotizador')}
-            onDeleteLine={deleteCostLine}
+            onAddLine={addCostLine}            onDeleteLine={deleteCostLine}
             onEdit={() => setIsCostEditing(true)}
             onLineChange={updateLine}
             onLineNameChange={updateLineName}
@@ -443,7 +439,6 @@ type CostStructureProps = {
   month: string;
   onAllocationChange: (id: string, field: keyof CostAllocation, checked: boolean) => void;
   onAddLine: () => void;
-  onBack: () => void;
   onDeleteLine: (id: string) => void;
   onEdit: () => void;
   onLineChange: (
@@ -470,7 +465,6 @@ function CostStructure({
   month,
   onAllocationChange,
   onAddLine,
-  onBack,
   onDeleteLine,
   onEdit,
   onLineChange,
@@ -492,12 +486,6 @@ function CostStructure({
         <div>
           <p className="eyebrow">Cotizador</p>
           <h1>Estructura de costos</h1>
-        </div>
-        <div className="topbar-actions">
-          <button className="ghost-button" onClick={onBack} type="button">
-            <CircleDollarSign size={17} />
-            Volver al cotizador
-          </button>
         </div>
       <SessionControls /></header>
 

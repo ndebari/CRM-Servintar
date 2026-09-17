@@ -40,12 +40,12 @@ h1 { font-weight: 720; letter-spacing: -.045em; }
 .panel,.metric-card { background: var(--surface); border-color: var(--border); border-radius: 20px; box-shadow: var(--shadow); }
 .panel-header { border-color: var(--border); }
 .panel-header > svg { color: var(--warm-ink); background: var(--warm); }
-.quote-topbar,.quote-wizard .quote-topbar { background: var(--hero); border: 1px solid #ffffff10; border-bottom: 3px solid var(--sun); border-radius: 20px; box-shadow: var(--shadow); padding: 25px 28px; margin-top: 24px; }
-.quote-topbar h1 { color: var(--hero-text); font-size: clamp(1.9rem,3vw,2.55rem); }
-.quote-topbar .page-description { color: #d9edff; font-size: 1rem; }
-.quote-topbar .header-session { color: var(--hero-text); }
-.quote-topbar .header-session .ghost-button { background: #ffffff0c; border-color: #ffffff45; color: #f4faff; }
-.quote-topbar .header-session .ghost-button:hover { background: #ffffff20; }
+.topbar,.quote-wizard .quote-topbar { background: var(--hero); border: 1px solid #ffffff10; border-bottom: 3px solid var(--sun); border-radius: 20px; box-shadow: var(--shadow); padding: 25px 28px; margin-top: 0; }
+.topbar h1 { color: var(--hero-text); font-size: clamp(1.9rem,3vw,2.55rem); }
+.topbar .page-description,.topbar .eyebrow { color: #d9edff; font-size: 1rem; }
+.topbar .header-session { color: var(--hero-text); }
+.topbar .header-session .ghost-button { background: #ffffff0c; border-color: #ffffff45; color: #f4faff; }
+.topbar .header-session .ghost-button:hover { background: #ffffff20; }
 .primary-button { background: var(--accent); color: #fff; border: 1px solid transparent; }
 .primary-button:not(:disabled) { box-shadow: 0 3px 8px #17569e15; }
 .primary-button:not(:disabled):hover { background: var(--accent-hover); box-shadow: var(--shadow); }
@@ -57,7 +57,7 @@ h1 { font-weight: 720; letter-spacing: -.045em; }
 .theme-toggle { display: inline-flex; gap: 7px; align-items: center; justify-content: center; }
 .header-session { gap: 8px; }
 .header-session-identity { font-size: .78rem; padding: 0 4px; }
-.quote-wizard .header-session .ghost-button { font-size: .78rem; min-height: 38px; }
+.topbar .header-session .ghost-button { font-size: .78rem; min-height: 38px; }
 .auth-screen { background: radial-gradient(ellipse at 90% 0%,var(--glow),transparent 55%),radial-gradient(ellipse at 0% 100%,var(--accent-soft),transparent 60%),var(--canvas); }
 .auth-screen .panel { padding: 34px; }
 .auth-theme { position: absolute; top: 20px; right: 24px; }
@@ -115,9 +115,16 @@ a,.client-name-button,.truck-profile summary { color: var(--accent-ink); }
 @media(max-width:640px) {
  .header-session { gap: 8px; }
  .header-session-identity { flex-basis: 100%; order: -1; }
- .quote-wizard .quote-topbar { padding: 22px 18px; margin-top: 16px; }
+ .topbar,.quote-wizard .quote-topbar { padding: 22px 18px; margin-top: 0; }
  .quote-steps button { font-size: .8rem; min-height: 58px; }
  .sidebar { flex-direction: column; gap: 12px; }
  .nav-item { min-height: 44px; flex-direction: row; font-size: .75rem; padding: 8px 12px; white-space: nowrap; }
  .panel { border-radius: 16px; }
 }
+
+.workspace:has(.topbar) { padding-top: 24px; }
+.topbar-actions { margin-left: auto; justify-content: flex-end; flex-wrap: wrap; }
+.topbar-actions .header-session { margin-left: 0; }
+.topbar-actions > .primary-button { background: var(--sun); color: var(--sun-ink); min-height: 38px; font-size: .78rem; }
+.topbar-actions > .primary-button:hover { background: #ffe791; color: var(--sun-ink); }
+@media(max-width:640px) { .topbar-actions { width: 100%; justify-content: flex-start; margin-left: 0; } }
