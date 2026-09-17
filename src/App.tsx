@@ -301,22 +301,11 @@ function App() {
 
   const saveClient = (client: Client) => {
     setClients((currentClients) => {
-      const exists = currentClients.some((item) => item.id === client.id);
-      return exists ? currentClients.map((item) => (item.id === client.id ? client : item)) : [client, ...currentClients];
+      const previous = currentClients.find((item) => item.id === client.id);
+      const saved = { ...client, createdAt: previous ? previous.createdAt : new Date().toISOString(), active: client.active !== false };
+      return previous ? currentClients.map((item) => (item.id === client.id ? saved : item)) : [saved, ...currentClients];
     });
     setQuoteDraft((currentDraft) => ({ ...currentDraft, clientId: currentDraft.clientId || client.id }));
-  };
-
-  const deleteClient = (id: string) => {
-    const remainingQuotes = quotes.filter(quoteItem => quoteItem.clientId !== id);
-    try { localStorage.setItem('servintar.quotes.v1', JSON.stringify(remainingQuotes)); }
-    catch { window.alert('No se pudo guardar la baja. No se eliminaron datos.'); return; }
-    setClients((currentClients) => currentClients.filter((client) => client.id !== id));
-    setQuotes(remainingQuotes);
-    setQuoteDraft((currentDraft) => ({
-      ...currentDraft,
-      clientId: currentDraft.clientId === id ? clients.find((client) => client.id !== id)?.id ?? '' : currentDraft.clientId
-    }));
   };
 
   const prepareQuote = () => {
@@ -479,7 +468,6 @@ function App() {
             clientTypes={clientTypes}
             clients={clients}
             onClientTypesChange={setClientTypes}
-            onDeleteClient={deleteClient}
             onSaveClient={saveClient}
           />
         )}

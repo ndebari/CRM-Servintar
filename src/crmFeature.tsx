@@ -121,6 +121,8 @@ export type ContactInfo = {
 
 export type Client = {
   id: string;
+  createdAt?: string;
+  active?: boolean;
   businessName: string;
   alias: string;
   cuit: string;
@@ -287,7 +289,8 @@ export function createQuoteDraft(clientId: string): TransportQuoteDraft {
 
 export function createEmptyClient(type: string): Client {
   return {
-    id: `cliente-${Date.now()}`,
+    id: crypto.randomUUID(),
+    active: true,
     businessName: '',
     alias: '',
     cuit: '',
@@ -1090,17 +1093,19 @@ export function ClientsModule({
   clients,
   clientTypes,
   onClientTypesChange,
-  onDeleteClient,
   onSaveClient
 }: {
   clients: Client[];
   clientTypes: string[];
   onClientTypesChange: (types: string[]) => void;
-  onDeleteClient: (id: string) => void;
   onSaveClient: (client: Client) => void;
 }) {
   const [editingClient, setEditingClient] = useState<Client>(createEmptyClient(clientTypes[0] ?? ''));
   const [newType, setNewType] = useState('');
+  const [showDetails, setShowDetails] = useState(false);
+  const [clientError, setClientError] = useState('');
+  const openClient = (client: Client) => { setEditingClient(structuredClone(client)); setClientError(''); setShowDetails(true); };
+  const displayDate = (date?: string) => date && Number.isFinite(Date.parse(date)) ? new Date(date).toLocaleDateString('es-AR') : 'Sin registrar';
 
   const updateContact = (key: 'commercialContact' | 'operationalContact' | 'purchasingContact', field: keyof ContactInfo, value: string) => {
     setEditingClient((currentClient) => ({
@@ -1113,7 +1118,10 @@ export function ClientsModule({
   };
 
   const saveEditingClient = () => {
-    onSaveClient(editingClient);
+    if (!editingClient.alias.trim() || !editingClient.businessName.trim()) { setClientError('Completá el nombre de fantasía y la razón social.'); return; }
+    onSaveClient({ ...editingClient, alias: editingClient.alias.trim(), businessName: editingClient.businessName.trim(), active: editingClient.active !== false });
+    setShowDetails(false);
+    setClientError('');
     setEditingClient(createEmptyClient(clientTypes[0] ?? ''));
   };
 
@@ -1124,12 +1132,15 @@ export function ClientsModule({
           <p className="eyebrow">Modulo</p>
           <h1>Clientes</h1>
         </div>
-        <button className="primary-button" onClick={() => setEditingClient(createEmptyClient(clientTypes[0] ?? ''))} type="button">
+        <button className="primary-button" onClick={() => openClient(createEmptyClient(clientTypes[0] ?? ''))} type="button">
           <Building2 size={18} />
-          Alta de cliente
+          Nuevo cliente
         </button>
       </header>
 
+      {showDetails && <>
+      <button className="ghost-button" type="button" onClick={() => { setShowDetails(false); setClientError(''); }}>Volver al listado</button>
+      {clientError && <p role="alert">{clientError}</p>}
       <section className="content-grid">
         <div className="panel">
           <div className="panel-header">
@@ -1149,7 +1160,7 @@ export function ClientsModule({
               <input value={editingClient.businessName} onChange={(event) => setEditingClient({ ...editingClient, businessName: event.target.value })} />
             </label>
             <label>
-              Alias
+              Nombre de fantasía
               <input value={editingClient.alias} onChange={(event) => setEditingClient({ ...editingClient, alias: event.target.value })} />
             </label>
             <label>
@@ -1166,6 +1177,10 @@ export function ClientsModule({
             </label>
           </div>
 
+          <div className="form-grid">
+            <label>Fecha de alta<input readOnly value={displayDate(editingClient.createdAt)} placeholder="Se registra al guardar" /></label>
+            <label>Estado<select value={editingClient.active === false ? 'inactive' : 'active'} onChange={event => setEditingClient({ ...editingClient, active: event.target.value === 'active' })}><option value="active">Activo</option><option value="inactive">Inactivo</option></select></label>
+          </div>
           <div className="contact-grid">
             <ContactEditor title="Contacto Comercial" contact={editingClient.commercialContact} onChange={(field, value) => updateContact('commercialContact', field, value)} />
             <ContactEditor title="Contacto Operativo" contact={editingClient.operationalContact} onChange={(field, value) => updateContact('operationalContact', field, value)} />
@@ -1207,31 +1222,19 @@ export function ClientsModule({
         </div>
       </section>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">Listado</p>
-            <h2>Clientes cargados</h2>
-          </div>
-        </div>
-        <div className="entity-list">
-          {clients.map((client) => (
-            <div className="entity-row" key={client.id}>
-              <div>
-                <strong>{client.businessName}</strong>
-                <span>{client.alias} · {client.cuit} · {client.type}</span>
-              </div>
-              <button className="ghost-button" onClick={() => setEditingClient(client)} type="button">
-                <SquarePen size={17} />
-                Editar
-              </button>
-              <button className="icon-button danger-button" onClick={() => onDeleteClient(client.id)} type="button" aria-label={`Eliminar ${client.alias}`}>
-                <Trash2 size={17} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
+      </>}
+      {!showDetails && <section className="panel">
+        <div className="panel-header"><h2>Clientes creados</h2></div>
+        {clients.length === 0 ? <p>Todavía no hay clientes. Usá «Nuevo cliente» para crear el primero.</p> :
+          <div className="client-list-scroll"><table className="client-list-table">
+            <thead><tr><th>Nombre de fantasía</th><th>Fecha de alta</th><th>Estado</th></tr></thead>
+            <tbody>{clients.map(client => <tr key={client.id} onClick={() => openClient(client)}>
+              <td><button type="button" className="client-name-button" onClick={event => {event.stopPropagation();openClient(client);}}>{client.alias || client.businessName}</button></td>
+              <td>{displayDate(client.createdAt)}</td>
+              <td><span className={client.active === false ? 'client-inactive' : 'client-active'}>{client.active === false ? 'Inactivo' : 'Activo'}</span></td>
+            </tr>)}</tbody>
+          </table></div>}
+      </section>}
     </>
   );
 }
