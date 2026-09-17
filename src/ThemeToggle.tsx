@@ -11,7 +11,7 @@ export function ThemeToggle() {
   const next=dark?'light':'dark';
   document.documentElement.dataset.theme=next;
   try{localStorage.setItem('servintar.theme',next);}catch{/* Preference still works when storage is unavailable. */}
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',next==='dark'?'#141c22':'#f5f6f2');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',next==='dark'?'#0e1930':'#e7f3ff');
   window.dispatchEvent(new Event('crm-theme-change'));
  };
  return <button type="button" className="ghost-button theme-toggle" onClick={toggle} aria-pressed={dark} aria-label={dark?'Activar modo claro':'Activar modo oscuro'} title={dark?'Activar modo claro':'Activar modo oscuro'}>
