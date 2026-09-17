@@ -1177,6 +1177,16 @@ a { color: #125da8; text-underline-offset: 3px; }
 }
 
 .toll-journey { margin-top: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--field); }
+.toll-journeys { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 20px; align-items: start; }
+.toll-journeys-roundtrip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.toll-journeys > .toll-journey { margin-top: 0; min-width: 0; container-type: inline-size; }
+.toll-journey-unknown { grid-column: 1 / -1; }
+@container (max-width: 520px) {
+  .quote-wizard .toll-card .form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .toll-journeys-roundtrip { grid-template-columns: minmax(0, 1fr); }
+}
 .toll-journey-heading, .toll-journey-total { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .toll-journey-heading h3 { margin: 0; color: #174775; font-size: 1rem; }
 .toll-journey-heading > span { font-size: .78rem; color: var(--muted); }

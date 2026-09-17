@@ -961,8 +961,9 @@ export function CotizadorHome({
               {operatorCatalog.unresolved.map(item => <p className="toll-source" key={item.tramo}><a href={item.source} target="_blank" rel="noreferrer">{item.tramo}</a> · {item.reason}</p>)}
             </details>
             {officialStatus && <p className="toll-source tariff-lookup-status" role="status">{officialStatus}</p>}
+            <div className={'toll-journeys' + (draft.isRoundTrip ? ' toll-journeys-roundtrip' : '')}>
             {getTollGroups(draft).map(group => (
-              <section className="toll-journey" key={group.id} aria-label={group.title}>
+              <section className={'toll-journey' + (group.id === 'unknown' ? ' toll-journey-unknown' : '')} key={group.id} aria-label={group.title}>
                 <div className="toll-journey-heading">
                   <h3>{group.title}</h3>
                   <span>{group.rows.length} {group.rows.length === 1 ? 'pasada' : 'pasadas'}</span>
@@ -1013,6 +1014,7 @@ export function CotizadorHome({
                 </button>}
               </section>
             ))}
+            </div>
             {draft.tollListStatus !== 'detected' && <label className="check-inline toll-confirm"><input type="checkbox" checked={draft.tollListStatus === 'manual'} onChange={event => updateDraft('tollListStatus', event.target.checked ? 'manual' : 'pending')} />{draft.tolls.length ? 'Confirmo que revisé todos los peajes estimados del recorrido' : 'Confirmo que este recorrido no tiene peajes'}</label>}
             <div className="toll-total" aria-live="polite"><span>{tollReady ? 'Total peajes' : 'Subtotal peajes cargados'}</span><strong>{currency.format(tollSummary.total)}</strong></div>
             {!tollReady && <p className="toll-source">{tollSummary.pending ? 'Falta completar ' + tollSummary.pending + ' peaje(s). La tarifa final se habilita cuando todos estén completos.' : 'Falta confirmar el listado del recorrido.'}</p>}
