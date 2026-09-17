@@ -662,6 +662,13 @@ export function CotizadorHome({
     onDraftChange({ ...draft, ...(routeFields.includes(field) ? {returnFromStop: undefined} : {}), [field]: value });
   };
 
+  const addManualToll = (journey: 'outbound' | 'return') => {
+    onDraftChange({ ...draft, tollListStatus: 'pending', tolls: [...draft.tolls, {
+      id: 'manual:' + crypto.randomUUID(), journey, name: '', locality: '', road: '', province: '',
+      travelSense: '', amount: null, source: 'manual', payment: '', operator: ''
+    }] });
+  };
+
   const addAdditional = (id: string) => {
     const definition = additionalCatalog.find(item => item.id === id);
     if (!definition || draft.additionals.some((item) => item.catalogId === id || item.name === definition.name)) {
@@ -897,7 +904,9 @@ export function CotizadorHome({
               {group.rows.map(({ toll, index }, groupIndex) => (
                 <div className="toll-card" key={toll.id}>
                   <div className="toll-card-heading"><strong>{group.id === 'return' ? 'Vuelta' : group.id === 'outbound' ? 'Ida' : 'Tramo sin identificar'} · Paso {groupIndex + 1}</strong><span>{toll.source === 'official' ? 'Publicación oficial · 6 ejes' : toll.source === 'automatic' ? 'Tarifa estimada · 6 ejes' : toll.amount === null ? 'Importe pendiente' : 'Importe manual'}</span></div>
-                  <p className="toll-travel-sense"><strong>{toll.travelSense || 'Sentido de circulación pendiente de identificar'}</strong></p>
+                  {toll.id.startsWith('manual:')
+                    ? <label>Sentido de circulación<input aria-label={'Sentido manual del peaje ' + (index + 1)} placeholder="Ej.: Hacia CABA" value={toll.travelSense ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? {...item, travelSense: event.target.value} : item))} /></label>
+                    : <p className="toll-travel-sense"><strong>{toll.travelSense || 'Sentido de circulación pendiente de identificar'}</strong></p>}
                   <div className="form-grid">
                     <label>Nombre del peaje<input aria-label={'Nombre del peaje ' + (index + 1)} value={toll.name} placeholder="Completar nombre" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, name: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))} /></label>
                     <label>Localidad<input aria-label={'Localidad del peaje ' + (index + 1)} value={toll.locality} placeholder="Localidad no informada" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, locality: event.target.value } : item))} /></label>
@@ -931,6 +940,9 @@ export function CotizadorHome({
                   <span>{group.rows.some(({ toll }) => toll.amount === null) || draft.tollListStatus === 'pending' ? 'Subtotal cargado' : 'Total del tramo'}</span>
                   <strong>{currency.format(group.rows.reduce((total, { toll }) => total + (toll.amount ?? 0), 0))}</strong>
                 </div>
+                {group.id !== 'unknown' && <button className="ghost-button" type="button" onClick={() => addManualToll(group.id === 'return' ? 'return' : 'outbound')}>
+                  <Plus size={16} /> Agregar peaje de {group.id === 'return' ? 'vuelta' : 'ida'}
+                </button>}
               </section>
             ))}
             {draft.tollListStatus !== 'detected' && <label className="check-inline toll-confirm"><input type="checkbox" checked={draft.tollListStatus === 'manual'} onChange={event => updateDraft('tollListStatus', event.target.checked ? 'manual' : 'pending')} />{draft.tolls.length ? 'Confirmo que revisé todos los peajes estimados del recorrido' : 'Confirmo que este recorrido no tiene peajes'}</label>}
