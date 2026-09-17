@@ -52,3 +52,9 @@ La aplicación ya incluye el adaptador remoto y la pantalla de acceso. Aplicar c
 ## Pruebas
 
 verify-crm.sql verifica objetos, funciones y valores iniciales sin mostrar datos comerciales. scripts/test-supabase.mjs ejecuta pruebas sobre PostgreSQL mediante PGlite, fuera del proyecto productivo. Requiere @electric-sql/pglite disponible, o CRM_PGLITE_MODULE apuntando a su módulo.
+
+Administración de usuarios: aplicar `crm-admin-access.sql` después de las migraciones anteriores, con el correo `ndebari@servintar.com.ar` ya confirmado. Ese usuario es el administrador principal; su identidad queda asociada al ID de Auth, sin depender de metadatos editables por el usuario.
+
+El administrador abre **Usuarios** y autoriza el correo antes del registro. Un trigger sobre `auth.users` rechaza la creación de cuentas con correos no autorizados, incluso por llamadas directas a Auth. El nuevo usuario crea su contraseña y confirma su correo. Los usuarios comunes no pueden consultar ni modificar las autorizaciones. Revocar acceso bloquea inmediatamente las consultas y operaciones del CRM; conserva la cuenta de Auth y sus referencias históricas. No se permite revocar al administrador ni cambiar su correo desde Auth.
+
+Validación aislada: `node scripts/test-admin-access.mjs` (requiere PGlite o CRM_PGLITE_MODULE). El SQL se aplica desde el panel con privilegios de propietario; esas credenciales nunca forman parte del frontend. Los operadores con credenciales administrativas de Supabase conservan control de infraestructura.
