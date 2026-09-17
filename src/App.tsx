@@ -370,10 +370,6 @@ function App() {
           <button className={`nav-item ${view === 'abm' ? 'active' : ''}`} onClick={() => setView('abm')} aria-current={view === 'abm' ? 'page' : undefined} type="button"><Plus size={18} />ABM</button>
         </nav>
         </div>
-        <div className="sidebar-footer">
-          <strong>Todo listo para avanzar</strong>
-          <span>Clientes, costos y cotizaciones en un solo lugar.</span>
-        </div>
 
       </aside>
 
