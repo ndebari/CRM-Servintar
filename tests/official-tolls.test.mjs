@@ -73,3 +73,24 @@ test('Hudson reports every missing price selection together', async () => {
  assert.equal(result[0].amount, null);
  assert.match(result[0].lookupMessage, /automáticamente/);
 });
+
+test('each crossing uses its own payment, including mixed payment on the same station', async () => {
+ const source = findPublication(toll, 'tag').source;
+ const original = source.sha256; const bytes = Buffer.from('mixed payment fixture');
+ source.sha256 = createHash('sha256').update(bytes).digest('hex');
+ try {
+  const mock = async url => new Response(url === source.page ? source.document : bytes);
+  const rows = [
+   { ...toll, id: 'tag', payment: 'tag' },
+   { ...toll, id: 'cash', payment: 'cash' },
+   { ...toll, id: 'blank', payment: '' },
+   { ...toll, id: 'legacy' }
+  ];
+  const results = await searchOfficialTariffs(rows, 'tag', mock);
+  assert.equal(results[0].amount, source.rates.tag.normal);
+  assert.equal(results[1].amount, source.rates.cash.normal);
+  assert.equal(results[2].amount, null);
+  assert.match(results[2].lookupMessage, /forma de pago/);
+  assert.equal(results[3].amount, source.rates.tag.normal);
+ } finally { source.sha256 = original; }
+});
