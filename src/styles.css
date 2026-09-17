@@ -1254,3 +1254,6 @@ a { color: #125da8; text-underline-offset: 3px; }
   .wizard-footer p { order: -1; flex-basis: 100%; }
   .wizard-footer .primary-button { margin-left: auto; }
 }
+
+.quote-wizard .operation-description { display: grid; gap: 10px; margin: 22px 0; }
+.quote-wizard .operation-description textarea { box-sizing: border-box; width: 100%; min-height: 110px; resize: vertical; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--field); color: inherit; font: inherit; font-size: 18px; line-height: 1.5; }

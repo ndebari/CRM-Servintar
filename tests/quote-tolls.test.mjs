@@ -11,7 +11,22 @@ const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url),
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
 const catalogUrl = new URL('../netlify/lib/toll-operators.json', import.meta.url).href;
 await writeFile(`${temp}/quote.mjs`, compiled.outputText.replace("'../netlify/lib/toll-operators.json'", JSON.stringify(catalogUrl) + " with { type: 'json' }"));
-const { getQuoteStageErrors, getClientContacts, roundQuoteTariff, initialClients, BERISSO_ADDRESS, getRouteStops, createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+const { formatPlaceLabel, getQuoteStageErrors, getClientContacts, roundQuoteTariff, initialClients, BERISSO_ADDRESS, getRouteStops, createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+
+test('selected places retain business names and operation descriptions are optional and saved', () => {
+ assert.equal(formatPlaceLabel({name:'TECPLATA',formatted_address:'Río de Janeiro Oeste 5071, Berisso'}),'TECPLATA, Río de Janeiro Oeste 5071, Berisso');
+ assert.equal(formatPlaceLabel({name:'Zárate',formatted_address:'Zárate, Buenos Aires'}),'Zárate, Buenos Aires');
+ assert.equal(formatPlaceLabel({name:'TECPLATA'}),'TECPLATA');
+ assert.equal(formatPlaceLabel({},'Dirección manual'),'Dirección manual');
+ const draft=draftWithTolls(100);
+ const original=buildPreparedQuote(draft,[],{perDay:5000,perKm:100});
+ assert.doesNotMatch(original.text,/Descripción de la operación:/);
+ draft.operationDescription='Retirar contenedor\nCoordinar ingreso a planta';
+ const quote=buildPreparedQuote(draft,[],{perDay:5000,perKm:100});
+ assert.equal(quote.amount,original.amount);
+ assert.equal(quote.draft.operationDescription,draft.operationDescription);
+ assert.ok(quote.text.includes(draft.operationDescription));
+});
 
 test('wizard gates client, contact, route, margin and toll confirmation independently', () => {
  const draft={...createQuoteDraft(initialClients[0].id),transportKind:'carreton',origin:'Carga',destination:'Descarga'};

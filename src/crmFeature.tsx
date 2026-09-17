@@ -183,6 +183,7 @@ export type TransportQuoteDraft = {
   requestDate: string;
   quoteDate: string;
   serviceName: string;
+  operationDescription?: string;
   transportKind: TransportKind;
   base: string;
   origin: string;
@@ -385,6 +386,7 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       '',
       `De acuerdo con lo solicitado, enviamos cotizacion por ${draft.serviceName}.`,
       `Operacion: ${transportLabels[draft.transportKind]} - ${draft.isRoundTrip ? 'roundtrip' : 'solo ida'}.`,
+      ...(draft.operationDescription?.trim() ? [`Descripción de la operación: ${draft.operationDescription.trim()}`] : []),
       `Base de salida: ${baseName(draft.base)} · ${routeAddress(draft.base)}`,
       `Recorrido: ${getRouteDescription(draft)}.`,
       ...(activeIntermediateStops(draft).length ? [`Recorrido con paradas: ${getRouteStops(draft).join(' → ')}.`] : []),
@@ -837,6 +839,7 @@ export function CotizadorHome({
             </label>
             <label>Modalidad del viaje<select value={draft.isRoundTrip ? 'roundtrip' : 'oneway'} onChange={event => updateDraft('isRoundTrip',event.target.value === 'roundtrip')}><option value="roundtrip">Roundtrip</option><option value="oneway">Solo ida</option></select></label>
           </div>
+          <label className="operation-description">Descripción de la operación (opcional)<textarea rows={3} value={draft.operationDescription ?? ''} onChange={event => updateDraft('operationDescription', event.target.value)} /></label>
 
 
           {draft.transportKind === 'expo' && (
@@ -1057,6 +1060,7 @@ export function CotizadorHome({
         <section hidden={stage!==5} aria-label="Detalle final">
           <div className="review-details"><div><h3>Cliente y contacto</h3><p><strong>{selectedClient?.alias || selectedClient?.businessName}</strong></p><p>{selectedClient?.businessName} · CUIT {selectedClient?.cuit}</p><p>{selectedContact?.fullName} · {selectedContact?.role}</p><p>{selectedContact?.email} · {selectedContact?.phone}</p><p>Solicitud: {draft.requestDate} · Cotización: {draft.quoteDate}</p></div>
           <div><h3>Servicio</h3><p>{transportLabels[draft.transportKind]} · {draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'}</p><p>{baseName(draft.base)} · {routeAddress(draft.base)}</p><p>{draft.distanceKm.toLocaleString('es-AR')} km · {draft.requiredDays} día(s) de operación</p></div></div>
+          {draft.operationDescription?.trim() && <div className="operation-description"><h3>Descripción de la operación</h3><p style={{whiteSpace:'pre-wrap'}}>{draft.operationDescription}</p></div>}
           <h3>Recorrido y paradas</h3><ol className="review-route">{routeStops.map((stop,index) => <li key={index}>{stop}</li>)}</ol>
           <div className="review-details"><div><h3>Costos y tarifa</h3><dl className="review-totals">
             <div><dt>Subtotal costo del viaje</dt><dd>{exactCurrency(baseAmount)}</dd></div>
@@ -1390,6 +1394,17 @@ function ContactEditor({
   );
 }
 
+export function formatPlaceLabel(place: { name?: string; formatted_address?: string }, fallback = '') {
+  const name = place.name?.trim() || '';
+  const address = place.formatted_address?.trim() || '';
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/\s+/g, ' ');
+  if (!name || !address) return address || name || fallback;
+  const normalizedAddress = normalize(address);
+  const normalizedName = normalize(name);
+  return normalizedAddress === normalizedName || normalizedAddress.startsWith(normalizedName + ',')
+    ? address : `${name}, ${address}`;
+}
+
 function AddressField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
@@ -1420,7 +1435,7 @@ function AddressField({ label, value, onChange }: { label: string; value: string
 
         listener = autocomplete.addListener('place_changed', () => {
           const place = autocomplete.getPlace();
-          onChangeRef.current(place.formatted_address || place.name || inputRef.current?.value || '');
+          onChangeRef.current(formatPlaceLabel(place, inputRef.current?.value));
           requestAnimationFrame(showBeginning);
         });
       })
