@@ -10,7 +10,7 @@
         var preference = localStorage.getItem('servintar.theme');
         var theme = preference === 'dark' || preference === 'light' ? preference : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         document.documentElement.dataset.theme = theme;
-        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#141c22' : '#f5f6f2';
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#0e1930' : '#e7f3ff';
       } catch { document.documentElement.dataset.theme = 'light'; }
     </script>
   </head>

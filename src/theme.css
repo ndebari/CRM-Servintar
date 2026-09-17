@@ -1,34 +1,38 @@
-/* Shared palette: warm ivory, eucalyptus and a restrained apricot accent. */
+/* Blue skies and sunshine, with a navy counterpart for night. */
 :root {
- --canvas: #f5f6f2; --surface: #ffffff; --surface-soft: #edf3ef; --field: #fbfcfa;
- --border: #dce5df; --input-border: #c4d3cb; --text: #243c36; --muted: #62766e;
- --accent: #267363; --accent-hover: #1b5e50; --accent-soft: #e0eee7; --accent-ink: #1c5c4d;
- --warm: #fff1dd; --warm-ink: #825822; --danger: #b73f42; --danger-soft: #fff0f0;
- --shadow: 0 5px 24px #273e3210; --sidebar: #1c3632; --sidebar-text: #d0e1d9;
- --hero: linear-gradient(115deg,#24564a,#327866); --hero-text: #f4fff8;
+ --canvas: #e7f3ff; --surface: #ffffff; --surface-soft: #eaf4ff; --field: #f8fcff;
+ --border: #c3dcf2; --input-border: #9bbede; --text: #163b63; --muted: #506c87;
+ --accent: #1466c5; --accent-hover: #0e51a4; --accent-soft: #d9edff; --accent-ink: #14569d;
+ --warm: #fff2bd; --warm-ink: #785719; --sun: #ffdc62; --sun-ink: #17395c;
+ --danger: #b73f42; --danger-soft: #fff0f0;
+ --shadow: 0 6px 26px #1a63ac13; --sidebar: linear-gradient(165deg,#134c91,#183b70); --sidebar-text: #daeaff;
+ --hero: linear-gradient(110deg,#145ab4,#1988cc); --hero-text: #ffffff;
+ --glow: #fff1ad; --nav-active: #ffdf68; --nav-active-ink: #17395c;
  color-scheme: light; color: var(--text); background: var(--canvas);
 }
 :root[data-theme="dark"] {
- --canvas: #141c22; --surface: #1d2931; --surface-soft: #24343d; --field: #19252d;
- --border: #34474f; --input-border: #486069; --text: #e3eeea; --muted: #adbfbb;
- --accent: #89d5b8; --accent-hover: #a5e8cc; --accent-soft: #29483f; --accent-ink: #a4e9ce;
- --warm: #423a2d; --warm-ink: #f0cf98; --danger: #ffb3b3; --danger-soft: #472e36;
- --shadow: 0 6px 26px #00000025; --sidebar: #14262a; --sidebar-text: #b9cfca;
- --hero: linear-gradient(115deg,#25463f,#2c5c4d); --hero-text: #ecfff6;
+ --canvas: #0e1930; --surface: #172943; --surface-soft: #1c3352; --field: #11223c;
+ --border: #314d70; --input-border: #52759d; --text: #e5f0ff; --muted: #abc1dc;
+ --accent: #ffdc62; --accent-hover: #ffe791; --accent-soft: #223f63; --accent-ink: #9fd2ff;
+ --warm: #3c3524; --warm-ink: #ffe086; --sun: #ffdc62; --sun-ink: #17395c;
+ --danger: #ffb3b3; --danger-soft: #472e36;
+ --shadow: 0 6px 26px #00000025; --sidebar: linear-gradient(165deg,#10233e,#0c172d); --sidebar-text: #bed5f1;
+ --hero: linear-gradient(110deg,#17335b,#20527c); --hero-text: #ecf6ff;
+ --glow: #514426; --nav-active: #403823; --nav-active-ink: #ffe17d;
  color-scheme: dark;
 }
-body { background: radial-gradient(ellipse at 100% 0%,var(--accent-soft),transparent 50%),var(--canvas); color: var(--text); }
+body { background: radial-gradient(ellipse at 100% 0%,var(--glow),transparent 48%),radial-gradient(ellipse at 0% 100%,var(--accent-soft),transparent 60%),var(--canvas); color: var(--text); }
 h1,h2,h3,h4, .metric-card strong, .grand-total, .stage-title { color: var(--text); }
 h1 { font-weight: 720; letter-spacing: -.045em; }
 .sidebar { background: var(--sidebar); border-color: var(--border); padding-top: 30px; }
-.brand-mark { background: #d1e7b7; color: #254b3f; border-radius: 14px; box-shadow: none; }
-.brand strong { color: #f2faf5; }
-.brand span,.nav-section-label,.sidebar-footer span { color: #abc4bb; }
+.brand-mark { background: var(--sun); color: var(--sun-ink); border-radius: 14px; box-shadow: none; }
+.brand strong { color: #f5faff; }
+.brand span,.nav-section-label,.sidebar-footer span { color: #b0cdef; }
 .sidebar-footer { border-color: #ffffff20; }
-.sidebar-footer strong { color: #e8f4ed; }
+.sidebar-footer strong { color: #e6f2ff; }
 .nav-item { color: var(--sidebar-text); min-height: 46px; border-radius: 12px; }
-.nav-item:hover { background: #ffffff0c; color: #f1fff5; }
-.nav-item.active { background: #d1e7b7; color: #234c3d; box-shadow: 0 3px 14px #00000012; }
+.nav-item:hover { background: #ffffff0c; color: #f1f8ff; }
+.nav-item.active { background: var(--nav-active); color: var(--nav-active-ink); box-shadow: 0 3px 14px #00000012; }
 .workspace { padding-top: 30px; }
 .topbar { border-color: var(--border); gap: 16px; }
 .eyebrow { background: transparent; color: var(--muted); letter-spacing: .15em; }
@@ -36,16 +40,16 @@ h1 { font-weight: 720; letter-spacing: -.045em; }
 .panel,.metric-card { background: var(--surface); border-color: var(--border); border-radius: 20px; box-shadow: var(--shadow); }
 .panel-header { border-color: var(--border); }
 .panel-header > svg { color: var(--warm-ink); background: var(--warm); }
-.quote-topbar,.quote-wizard .quote-topbar { background: var(--hero); border: 1px solid #ffffff10; border-bottom: 0; border-radius: 20px; box-shadow: var(--shadow); padding: 25px 28px; margin-top: 24px; }
+.quote-topbar,.quote-wizard .quote-topbar { background: var(--hero); border: 1px solid #ffffff10; border-bottom: 3px solid var(--sun); border-radius: 20px; box-shadow: var(--shadow); padding: 25px 28px; margin-top: 24px; }
 .quote-topbar h1 { color: var(--hero-text); font-size: clamp(1.9rem,3vw,2.55rem); }
-.quote-topbar .page-description { color: #d6ecdf; font-size: 1rem; }
+.quote-topbar .page-description { color: #d9edff; font-size: 1rem; }
 .quote-topbar .header-session { color: var(--hero-text); }
-.quote-topbar .header-session .ghost-button { background: #ffffff0c; border-color: #ffffff45; color: #f4fff8; }
+.quote-topbar .header-session .ghost-button { background: #ffffff0c; border-color: #ffffff45; color: #f4faff; }
 .quote-topbar .header-session .ghost-button:hover { background: #ffffff20; }
 .primary-button { background: var(--accent); color: #fff; border: 1px solid transparent; }
-.primary-button:not(:disabled) { box-shadow: 0 3px 8px #173e2f15; }
+.primary-button:not(:disabled) { box-shadow: 0 3px 8px #17569e15; }
 .primary-button:not(:disabled):hover { background: var(--accent-hover); box-shadow: var(--shadow); }
-[data-theme="dark"] .primary-button { color: #132c24; }
+[data-theme="dark"] .primary-button { color: #142e50; }
 .primary-button:disabled { color: var(--muted); background: var(--surface-soft); border-color: var(--border); }
 .ghost-button,.icon-button { color: var(--accent-ink); background: var(--surface); border-color: var(--border); }
 .ghost-button:hover,.icon-button:hover { background: var(--accent-soft); border-color: var(--input-border); }
@@ -54,7 +58,7 @@ h1 { font-weight: 720; letter-spacing: -.045em; }
 .header-session { gap: 8px; }
 .header-session-identity { font-size: .78rem; padding: 0 4px; }
 .quote-wizard .header-session .ghost-button { font-size: .78rem; min-height: 38px; }
-.auth-screen { background: radial-gradient(ellipse at top,var(--accent-soft),transparent 65%),var(--canvas); }
+.auth-screen { background: radial-gradient(ellipse at 90% 0%,var(--glow),transparent 55%),radial-gradient(ellipse at 0% 100%,var(--accent-soft),transparent 60%),var(--canvas); }
 .auth-screen .panel { padding: 34px; }
 .auth-theme { position: absolute; top: 20px; right: 24px; }
 .auth-screen form { margin-top: 24px; }
@@ -84,9 +88,9 @@ a,.client-name-button,.truck-profile summary { color: var(--accent-ink); }
 .metric-grid[aria-label="Resumen de cotizacion"] .metric-card:last-child :is(strong,span,small) { color: var(--accent-ink); }
 .quote-steps button { background: var(--surface); color: var(--muted); border-color: var(--border); border-radius: 14px; }
 .quote-steps button span { background: var(--surface-soft); color: var(--muted); }
-.quote-steps button[aria-current="step"] { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
-.quote-steps button[aria-current="step"] span { background: var(--accent); color: var(--surface); }
-[data-theme="dark"] .quote-steps button[aria-current="step"] span { color: #132c24; }
+.quote-steps button[aria-current="step"] { background: var(--warm); color: var(--warm-ink); border-color: var(--sun); }
+.quote-steps button[aria-current="step"] span { background: var(--sun); color: var(--sun-ink); }
+[data-theme="dark"] .quote-steps button[aria-current="step"] span { color: #142e50; }
 .wizard-footer { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow); }
 .wizard-footer p { color: var(--warm-ink); }
 .cost-head,.quote-head,thead { background: var(--surface-soft); color: var(--muted); }
