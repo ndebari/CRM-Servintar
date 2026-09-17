@@ -364,26 +364,13 @@ function App() {
         <div>
           <p className="nav-section-label">Espacio de trabajo</p>
         <nav className="nav-list" aria-label="Principal">
-          <button className={`nav-item ${view === 'cotizador' ? 'active' : ''}`} onClick={() => setView('cotizador')} aria-current={view === 'cotizador' ? 'page' : undefined} type="button">
-            <CircleDollarSign size={18} />
-            Cotizador
-          </button>
-          <button className={`nav-item ${view === 'clientes' ? 'active' : ''}`} onClick={() => setView('clientes')} aria-current={view === 'clientes' ? 'page' : undefined} type="button">
-            <Users size={18} />
-            Clientes
-          </button>
-          <button className={`nav-item ${view === 'cotizaciones' ? 'active' : ''}`} onClick={() => {setQuoteFocus('');setView('cotizaciones');}} aria-current={view === 'cotizaciones' ? 'page' : undefined} type="button">
-            <ClipboardList size={18} />
-            Cotizaciones
-          </button>
-          <button className={`nav-item ${view === 'precios' ? 'active' : ''}`} onClick={() => {setQuoteFocus('');setView('precios');}} type="button"><ClipboardList size={18} />Lista de precios</button>
-          <button className={`nav-item ${view === 'costos' ? 'active' : ''}`} onClick={() => setView('costos')} aria-current={view === 'costos' ? 'page' : undefined} type="button">
-            <FileSpreadsheet size={18} />
-            Estructura de costos
-          </button>
+          <button className={`nav-item ${view === 'cotizador' ? 'active' : ''}`} onClick={() => setView('cotizador')} aria-current={view === 'cotizador' ? 'page' : undefined} type="button"><CircleDollarSign size={18} />Cotizador</button>
+          <button className={`nav-item ${view === 'clientes' ? 'active' : ''}`} onClick={() => setView('clientes')} aria-current={view === 'clientes' ? 'page' : undefined} type="button"><Users size={18} />Clientes</button>
+          <button className={`nav-item ${view === 'proveedores' ? 'active' : ''}`} onClick={() => setView('proveedores')} aria-current={view === 'proveedores' ? 'page' : undefined} type="button"><Users size={18} />Proveedores</button>
+          <button className={`nav-item ${view === 'precios' ? 'active' : ''}`} onClick={() => {setQuoteFocus('');setView('precios');}} aria-current={view === 'precios' ? 'page' : undefined} type="button"><ClipboardList size={18} />Tarifas vigentes</button>
+          <button className={`nav-item ${view === 'costos' ? 'active' : ''}`} onClick={() => setView('costos')} aria-current={view === 'costos' ? 'page' : undefined} type="button"><FileSpreadsheet size={18} />Estructura de costos</button>
+          <button className={`nav-item ${view === 'fleteros' ? 'active' : ''}`} onClick={() => setView('fleteros')} aria-current={view === 'fleteros' ? 'page' : undefined} type="button"><BadgeDollarSign size={18} />Precios Fleteros</button>
           <button className={`nav-item ${view === 'abm' ? 'active' : ''}`} onClick={() => setView('abm')} aria-current={view === 'abm' ? 'page' : undefined} type="button"><Plus size={18} />ABM</button>
-          <button className={`nav-item ${view==='proveedores'?'active':''}`} onClick={()=>setView('proveedores')} type="button"><Users size={18}/>Proveedores</button>
-          <button className={`nav-item ${view==='fleteros'?'active':''}`} onClick={()=>setView('fleteros')} type="button"><BadgeDollarSign size={18}/>Precios fleteros</button>
         </nav>
         </div>
         <div className="sidebar-footer">
