@@ -47,3 +47,11 @@ test('recognizes concessionaire from station and preserves explicit choices', ()
  assert.equal(findPublication({name:'Campana',operator:'other',period:'normal'},'tag').source,undefined);
  assert.equal(findPublication({name:'Estación desconocida',period:'normal'},'tag').source,undefined);
 });
+
+test('recognizes quoted station names from the OSM route catalog without fuzzy matching', () => {
+ for (const name of ['Estación de Peaje "Gutiérrez"', 'Estación de Peaje “Gutiérrez”', 'Peaje «Gutiérrez»']) {
+  assert.equal(findPublication({ ...toll, name }, 'tag').source.stations.includes('gutierrez'), true);
+ }
+ assert.equal(findPublication({ ...toll, name: 'Gutiérrez otra estación' }, 'tag').source, undefined);
+ assert.equal(findPublication({ ...toll, name: '"Gutiérrez"', operator: 'other' }, 'tag').source, undefined);
+});
