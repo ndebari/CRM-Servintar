@@ -11,7 +11,7 @@ const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url),
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
 const catalogUrl = new URL('../netlify/lib/toll-operators.json', import.meta.url).href;
 await writeFile(`${temp}/quote.mjs`, compiled.outputText.replace("'../netlify/lib/toll-operators.json'", JSON.stringify(catalogUrl) + " with { type: 'json' }"));
-const { formatPlaceLabel, getQuoteStageErrors, getClientContacts, roundQuoteTariff, initialClients, BERISSO_ADDRESS, getRouteStops, createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+const { validateCuit, formatCuit, formatPlaceLabel, getQuoteStageErrors, getClientContacts, roundQuoteTariff, initialClients, BERISSO_ADDRESS, getRouteStops, createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
 
 test('selected places retain business names and operation descriptions are optional and saved', () => {
  assert.equal(formatPlaceLabel({name:'TECPLATA',formatted_address:'Río de Janeiro Oeste 5071, Berisso'}),'TECPLATA, Río de Janeiro Oeste 5071, Berisso');
@@ -335,4 +335,17 @@ test('utility must be explicitly numeric: zero is valid, blank and invalid value
  for (const value of ['', NaN, Infinity, -1, 100]) {
   assert.throws(() => buildPreparedQuote({...draft,utilityPercent:value}, [], {perDay:100,perKm:1}), /Completá la utilidad/);
  }
+});
+
+
+test('CUIT checks exact length, allowed formatting and modulo 11 checksum without changing identity', () => {
+ assert.equal(validateCuit('20-12345678-6'), '');
+ assert.equal(validateCuit('20123456786'), '');
+ assert.equal(formatCuit('20123456786'), '20-12345678-6');
+ assert.equal(validateCuit('30-00000000-7'), '');
+ for(const value of ['', '2012345678', '201234567860', '20-12345678-5', '20-12345678-X', '00-00000000-0', '20--12345678-6', '20.12345678.6']) assert.notEqual(validateCuit(value),'');
+ assert.equal(formatCuit('20-12345678-5'),'20-12345678-5');
+ // Weighted sum divisible by 11: check digit zero. Remainder one has no decimal check digit.
+ assert.equal(validateCuit('20000000060'),'');
+ assert.notEqual(validateCuit('20000000010'),'');
 });

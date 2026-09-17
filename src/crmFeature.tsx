@@ -1089,6 +1089,24 @@ export function CotizadorHome({
   );
 }
 
+export function validateCuit(value: string): string {
+  const text = value.trim();
+  if (!text) return 'Completá el CUIT (11 dígitos).';
+  if (!/^\d{11}$/.test(text) && !/^\d{2}-\d{8}-\d$/.test(text)) return 'El CUIT debe tener 11 dígitos, con formato XX-XXXXXXXX-X o sin guiones.';
+  const digits = text.replace(/-/g, '');
+  if (/^0+$/.test(digits)) return 'El CUIT no puede contener solo ceros.';
+  const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  const sum = weights.reduce((total, weight, index) => total + Number(digits[index]) * weight, 0);
+  const expected = (11 - sum % 11) % 11;
+  if (expected === 10 || expected !== Number(digits[10])) return 'El dígito verificador del CUIT es incorrecto. Revisá los 11 dígitos.';
+  return '';
+}
+
+export function formatCuit(value: string): string {
+  const text = value.trim();
+  return /^\d{11}$/.test(text) ? text.slice(0, 2) + '-' + text.slice(2, 10) + '-' + text.slice(10) : text;
+}
+
 export function ClientsModule({
   clients,
   clientTypes,
@@ -1106,7 +1124,9 @@ export function ClientsModule({
   const [newType, setNewType] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const [clientError, setClientError] = useState('');
-  const openClient = (client: Client) => { setEditingClient(structuredClone(client)); setClientError(''); setShowDetails(true); };
+  const [cuitTouched, setCuitTouched] = useState(false);
+  const cuitError = cuitTouched ? validateCuit(editingClient.cuit) : '';
+  const openClient = (client: Client) => { setEditingClient(structuredClone(client)); setClientError(''); setCuitTouched(false); setShowDetails(true); };
   const displayDate = (date?: string) => date && Number.isFinite(Date.parse(date)) ? new Date(date).toLocaleDateString('es-AR') : 'Sin registrar';
 
   const updateContact = (key: 'commercialContact' | 'operationalContact' | 'purchasingContact', field: keyof ContactInfo, value: string) => {
@@ -1120,8 +1140,10 @@ export function ClientsModule({
   };
 
   const saveEditingClient = () => {
+    setCuitTouched(true);
+    if (validateCuit(editingClient.cuit)) { setClientError('Revisá el CUIT antes de guardar el cliente.'); return; }
     if (!editingClient.alias.trim() || !editingClient.businessName.trim()) { setClientError('Completá el nombre de fantasía y la razón social.'); return; }
-    onSaveClient({ ...editingClient, alias: editingClient.alias.trim(), businessName: editingClient.businessName.trim(), active: editingClient.active !== false });
+    onSaveClient({ ...editingClient, cuit: formatCuit(editingClient.cuit), alias: editingClient.alias.trim(), businessName: editingClient.businessName.trim(), active: editingClient.active !== false });
     setShowDetails(false);
     setClientError('');
     setEditingClient(createEmptyClient(clientTypes[0] ?? ''));
@@ -1175,7 +1197,8 @@ export function ClientsModule({
             </label>
             <label>
               CUIT
-              <input value={editingClient.cuit} onChange={(event) => setEditingClient({ ...editingClient, cuit: event.target.value })} />
+              <input inputMode="numeric" maxLength={13} placeholder="XX-XXXXXXXX-X" aria-invalid={Boolean(cuitError)} aria-describedby="client-cuit-help" value={editingClient.cuit} onChange={(event) => { setEditingClient({ ...editingClient, cuit: event.target.value }); setClientError(''); }} onBlur={() => { setCuitTouched(true); setEditingClient(current => ({ ...current, cuit: formatCuit(current.cuit) })); }} />
+              <small id="client-cuit-help" role={cuitError ? 'alert' : undefined}>{cuitError || '11 dígitos. Se verifica el dígito de control; no se consulta el padrón de ARCA.'}</small>
             </label>
             <label>
               Tipo
