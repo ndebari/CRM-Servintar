@@ -1,3 +1,4 @@
+import { SessionControls } from './SessionControls';
 import { ImportLocalData } from './ImportLocalData';
 import { quoteNumber } from './quoteLifecycle';
 import { QuotesModule } from './QuotesModule';
@@ -507,7 +508,7 @@ function CostStructure({
             Volver al cotizador
           </button>
         </div>
-      </header>
+      <SessionControls /></header>
 
       <section className="metric-grid" aria-label="Totales de estructura">
         <Metric label="Mes vigente" value={`${month} ${year}`} hint={isCurrentMonthReady ? 'Habilitado para cotizar' : 'Pendiente de guardar'} />

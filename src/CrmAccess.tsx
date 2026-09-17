@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { AdminUsers } from './AdminUsers';
+import { SessionContext } from './SessionControls';
 export function CrmAccess({children}:{children:ReactNode}) {
  const [session,setSession]=useState<Session|null>(null);const [loading,setLoading]=useState(true);const [allowedUser,setAllowedUser]=useState('');
  const [admin,setAdmin]=useState(false);const [showUsers,setShowUsers]=useState(false);
@@ -28,7 +29,7 @@ export function CrmAccess({children}:{children:ReactNode}) {
   }catch(error){setMessage(error instanceof Error?error.message:'No se pudo iniciar sesión.');}finally{setBusy(false);}
  };
  if(loading)return <main className="auth-screen"><section className="panel"><h1>CRM Servintar</h1><p>Verificando acceso…</p></section></main>;
- if(session&&allowedUser===session.user.id)return <><div className="session-bar"><span>{session.user.email}{admin?' · Administrador':''}</span>{admin&&<button className="ghost-button" onClick={()=>setShowUsers(!showUsers)}>{showUsers?'Cerrar usuarios':'Usuarios'}</button>}<button className="ghost-button" onClick={()=>void supabase?.auth.signOut()}>Cerrar sesión</button></div>{admin&&showUsers&&<AdminUsers/>}{children}</>;
+ if(session&&allowedUser===session.user.id)return <SessionContext.Provider value={{email:session.user.email||'',admin,showUsers,toggleUsers:()=>setShowUsers(!showUsers),signOut:()=>void supabase?.auth.signOut()}}>{admin&&showUsers&&<AdminUsers/>}{children}</SessionContext.Provider>;
  return <main className="auth-screen"><section className="panel"><p className="eyebrow">Servintar</p><h1>{session?'Acceso al CRM':signup?'Crear usuario':'Ingresar al CRM'}</h1>
  {session?<><p role="alert">{message}</p><button className="primary-button" onClick={()=>window.location.reload()}>Verificar acceso</button><button className="ghost-button" onClick={()=>void supabase?.auth.signOut()}>Cerrar sesión</button></>:<form onSubmit={submit}>
  {signup&&<p>Solo podés crear tu usuario si el administrador autorizó previamente tu correo.</p>}
