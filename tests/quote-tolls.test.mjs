@@ -98,3 +98,12 @@ test('legacy additionals remain fixed and invalid amounts cannot create quotes',
  assert.throws(()=>calculateAdditionalAmount({amount:-1,discountPercent:0},5000));
  assert.throws(()=>calculateAdditionalAmount({amount:10,discountPercent:101},5000));
 });
+
+test('route refresh preserves individual payment and selections even with a pending price', () => {
+ const incoming = [{ id: 'osm:1:0', name: 'Hudson', amount: null, source: 'pending', payment: '' }];
+ const previous = [{ ...incoming[0], payment: 'cash', period: 'peak', direction: 'caba' }];
+ const refreshed = mergeRouteTolls(incoming, previous);
+ assert.equal(refreshed[0].payment, 'cash');
+ assert.equal(refreshed[0].period, 'peak');
+ assert.equal(refreshed[0].direction, 'caba');
+});
