@@ -11,7 +11,52 @@ const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url),
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
 const catalogUrl = new URL('../netlify/lib/toll-operators.json', import.meta.url).href;
 await writeFile(`${temp}/quote.mjs`, compiled.outputText.replace("'../netlify/lib/toll-operators.json'", JSON.stringify(catalogUrl) + " with { type: 'json' }"));
-const { getRouteStops, createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+const { getQuoteStageErrors, getClientContacts, roundQuoteTariff, initialClients, BERISSO_ADDRESS, getRouteStops, createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+
+test('wizard gates client, contact, route, margin and toll confirmation independently', () => {
+ const draft={...createQuoteDraft(initialClients[0].id),transportKind:'carreton',origin:'Carga',destination:'Descarga'};
+ assert.match(getQuoteStageErrors(draft,initialClients)[0],/contacto/);
+ draft.contactKey='operationalContact';
+ assert.equal(getQuoteStageErrors(draft,initialClients)[0],'');
+ assert.equal(getQuoteStageErrors(draft,initialClients)[1],'');
+ draft.requestDate='2026-02-31';
+ assert.match(getQuoteStageErrors(draft,initialClients)[0],/fechas/);
+ draft.requestDate='2026-09-17';
+ draft.distanceKm=100; draft.utilityPercent=0;
+ assert.equal(getQuoteStageErrors(draft,initialClients)[2],'');
+ assert.match(getQuoteStageErrors(draft,initialClients)[3],/peajes/);
+ draft.tollRouteKey=getTruckRouteKey(draft);draft.tollListStatus='manual';
+ assert.ok(getQuoteStageErrors(draft,initialClients).every(error=>!error));
+ draft.destination='';
+ assert.match(getQuoteStageErrors(draft,initialClients)[1],/direcciones/);
+ assert.match(getQuoteStageErrors(draft,initialClients)[3],/peajes/);
+ assert.equal(getClientContacts(initialClients[0]).length,3);
+ assert.equal(getClientContacts({...initialClients[0],commercialContact:{fullName:''}}).length,2);
+});
+
+test('new transport types leave their selected base and include intermediate stops before returning to it', () => {
+ for(const transportKind of ['carreton','distribucion','carga-suelta']) {
+   const draft={...createQuoteDraft('demo'),transportKind,base:'Base Berisso',origin:'Carga',destination:'Descarga',isRoundTrip:true,
+     intermediateStops:[{id:'1',address:'Intermedio',afterStop:1,transportKind}]};
+   assert.deepEqual(getRouteStops(draft),[BERISSO_ADDRESS,'Carga','Intermedio','Descarga',BERISSO_ADDRESS]);
+   assert.deepEqual(getRouteStops({...draft,isRoundTrip:false}),[BERISSO_ADDRESS,'Carga','Intermedio','Descarga']);
+ }
+});
+
+test('rounding applies after the existing margin formula and the saved quote snapshots its contact and inputs', () => {
+ assert.equal(roundQuoteTariff(1234.56,100),1300);
+ assert.equal(roundQuoteTariff(1200,100),1200);
+ assert.equal(roundQuoteTariff(1234.56,0),1234.56);
+ assert.equal(roundQuoteTariff(1234.56,1),1235);
+ assert.throws(()=>roundQuoteTariff(1234,7));
+ const draft={...draftWithTolls(100),clientId:initialClients[0].id,contactKey:'commercialContact',roundingUnit:1000};
+ const quote=buildPreparedQuote(draft,initialClients,{perDay:5000,perKm:100});
+ assert.equal(quote.amount,Math.ceil(((15000+900+100)/.8)/1000)*1000);
+ assert.equal(quote.contact.fullName,initialClients[0].commercialContact.fullName);
+ assert.match(quote.text,/Fórmula:/);assert.match(quote.text,/Redondeo:/);
+ draft.tolls[0].amount=900;
+ assert.equal(quote.draft.tolls[0].amount,100);
+});
 
 test('intermediate stops preserve segment order, include optional return stops once, and isolate transport types', () => {
  const draft={...createQuoteDraft('demo'),transportKind:'otro',origin:'CABA',destination:'Zárate',isRoundTrip:true,intermediateStops:[

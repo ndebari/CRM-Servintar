@@ -16,6 +16,7 @@ import {
 import { supabase } from './supabase';
 import {
   buildPreparedQuote,
+  getQuoteStageErrors,
   ClientsModule,
   CotizadorHome,
   createQuoteDraft,
@@ -157,7 +158,12 @@ function App() {
     catch { setAdditionalStatus('No se pudo guardar el catálogo en este navegador. No se aplicaron los cambios.'); return false; }
     setAdditionalCatalog(items); setAdditionalStatus('Catálogo guardado.'); return true;
   };
-  const [quotes, setQuotes] = useState<PreparedQuote[]>([]);
+  const [quotes, setQuotes] = useState<PreparedQuote[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('servintar.quotes.v1') ?? '[]');
+      return Array.isArray(saved) ? saved.filter(item => item && typeof item.id === 'string' && typeof item.text === 'string' && typeof item.clientId === 'string' && typeof item.amount === 'number' && Number.isFinite(item.amount)) : [];
+    } catch { return []; }
+  });
   const [quoteDraft, setQuoteDraft] = useState<TransportQuoteDraft>(() => createQuoteDraft(initialClients[0]?.id ?? ''));
 
   const totals = useMemo(() => calculateTotals(costLines), [costLines]);
@@ -302,8 +308,11 @@ function App() {
   };
 
   const deleteClient = (id: string) => {
+    const remainingQuotes = quotes.filter(quoteItem => quoteItem.clientId !== id);
+    try { localStorage.setItem('servintar.quotes.v1', JSON.stringify(remainingQuotes)); }
+    catch { window.alert('No se pudo guardar la baja. No se eliminaron datos.'); return; }
     setClients((currentClients) => currentClients.filter((client) => client.id !== id));
-    setQuotes((currentQuotes) => currentQuotes.filter((quoteItem) => quoteItem.clientId !== id));
+    setQuotes(remainingQuotes);
     setQuoteDraft((currentDraft) => ({
       ...currentDraft,
       clientId: currentDraft.clientId === id ? clients.find((client) => client.id !== id)?.id ?? '' : currentDraft.clientId
@@ -311,14 +320,20 @@ function App() {
   };
 
   const prepareQuote = () => {
+    const error = getQuoteStageErrors(quoteDraft, clients).find(Boolean);
+    if (error) return error;
     const preparedQuote = buildPreparedQuote(quoteDraft, clients, totals);
-    setQuotes((currentQuotes) => [preparedQuote, ...currentQuotes]);
+    const nextQuotes = [preparedQuote, ...quotes];
+    try { localStorage.setItem('servintar.quotes.v1', JSON.stringify(nextQuotes)); }
+    catch { return 'No se pudo guardar en este navegador. La cotización sigue abierta para volver a intentarlo.'; }
+    setQuotes(nextQuotes);
     setQuoteDraft((currentDraft) => ({
       ...currentDraft,
       state: 'Pendiente de envio',
       requiredAction: 'Enviar al cliente'
     }));
     setView('cotizaciones');
+    return undefined;
   };
 
   const saveMonthlySnapshot = async () => {

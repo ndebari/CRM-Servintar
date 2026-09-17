@@ -1187,3 +1187,60 @@ a { color: #125da8; text-underline-offset: 3px; }
 
 .field-error { color: #a22a22; font-size: .8rem; line-height: 1.4; }
 .form-grid input[aria-invalid="true"] { border-color: #c54738; background: #fff3ef; }
+
+/* The quote wizard uses the whole workspace, one stage at a time. */
+.quote-wizard { width: 100%; min-width: 0; font-size: 18px; display: grid; gap: 24px; }
+.quote-wizard [hidden] { display: none !important; }
+.quote-wizard .quote-topbar { position: static; margin: 0; padding: 24px 28px; width: auto; }
+.quote-wizard .page-description { font-size: 18px; }
+.quote-steps { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 8px; }
+.quote-steps button { display: flex; align-items: center; gap: 10px; min-height: 70px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: #245a87; text-align: left; font-size: 16px; }
+.quote-steps button span { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; background: #d6e9fa; font-weight: 700; }
+.quote-steps button[aria-current="step"] { background: #145da2; color: white; border-color: #145da2; }
+.quote-steps button[aria-current="step"] span { background: #78e3ed; color: #153f60; }
+.quote-steps button:disabled { opacity: .65; cursor: default; }
+.wizard-panel { width: 100%; padding: 30px; }
+.quote-wizard h2 { font-size: 28px; }
+.quote-wizard h3, .quote-wizard .toll-journey-heading h3 { font-size: 22px; }
+.quote-wizard h4 { font-size: 19px; }
+.quote-wizard label, .quote-wizard .form-grid label, .quote-wizard .additional-row label { font-size: 17px; }
+.quote-wizard input, .quote-wizard select { font-size: 18px; min-height: 48px; }
+.quote-wizard input[type="checkbox"] { min-height: 0; width: 20px; height: 20px; }
+.quote-wizard button.primary-button, .quote-wizard button.ghost-button { font-size: 17px; min-height: 48px; }
+.quote-wizard p, .quote-wizard .muted-copy, .quote-wizard .toll-source, .quote-wizard .route-status { font-size: 17px; line-height: 1.55; }
+.quote-wizard small, .quote-wizard .field-error, .quote-wizard .toll-card-heading span, .quote-wizard .toll-journey-heading > span { font-size: 15px; line-height: 1.5; }
+.quote-wizard .toll-journey-total { font-size: 18px; }
+.quote-wizard .toll-journey-total strong { font-size: 22px; }
+.quote-wizard .form-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 22px; align-items: start; }
+.quote-wizard .form-grid.route-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.quote-wizard .quote-additional-row { grid-template-columns: minmax(0,1fr) 200px 160px; align-items: center; padding: 22px; }
+.quote-wizard .metric-card > span { font-size: 17px; }
+.quote-wizard .metric-card strong { font-size: 28px; }
+.quote-wizard .metric-card small { font-size: 15px; }
+.wizard-costs { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.wizard-footer { position: sticky; bottom: 0; display: flex; align-items: center; gap: 20px; padding: 18px 22px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 -4px 20px #163c6512; z-index: 5; }
+.wizard-footer p { flex: 1; margin: 0; color: #805228; }
+.review-details { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 36px; }
+.review-details > div { min-width: 0; overflow-wrap: anywhere; }
+.review-route { padding-left: 28px; line-height: 1.65; }
+.review-route li { padding: 6px 0; }
+.review-totals { margin: 0; }
+.review-totals > div { display: flex; justify-content: space-between; gap: 18px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.review-totals dd { margin: 0; text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; }
+.review-emphasis { font-weight: 700; font-size: 21px; }
+.rounding-control { display: grid; gap: 10px; margin-top: 20px; }
+.tariff-formula { padding: 16px; background: var(--surface-soft); border-radius: 10px; }
+.review-additionals { padding-left: 24px; }
+.review-additionals li { padding: 12px 0; }
+.quote-wizard .toll-total strong { font-size: 28px; }
+@media (max-width: 1200px) { .quote-steps { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media (max-width: 760px) {
+  .wizard-panel { padding: 20px; }
+  .quote-steps { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .quote-wizard .form-grid, .quote-wizard .form-grid.route-grid, .review-details, .wizard-costs { grid-template-columns: 1fr; }
+  .quote-wizard .quote-additional-row { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .quote-wizard .quote-additional-row > div { grid-column: 1 / -1; }
+  .wizard-footer { flex-wrap: wrap; gap: 12px; }
+  .wizard-footer p { order: -1; flex-basis: 100%; }
+  .wizard-footer .primary-button { margin-left: auto; }
+}

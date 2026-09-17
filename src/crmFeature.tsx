@@ -3,7 +3,6 @@ import operatorCatalog from '../netlify/lib/toll-operators.json';
 import {
   Building2,
   ClipboardList,
-  FileText,
   Plus,
   Save,
   SquarePen,
@@ -108,8 +107,10 @@ function loadGooglePlaces() {
 
 export const LAVAISSE_BASE = 'Base Lavaisse';
 export const LAVAISSE_ADDRESS = 'Benjamín Lavaisse 1401, Ciudad Autónoma de Buenos Aires, Argentina';
-const baseName = (base: string) => base === 'Base Buenos Aires' ? LAVAISSE_BASE : base;
-const routeAddress = (address: string) => baseName(address.trim()) === LAVAISSE_BASE ? LAVAISSE_ADDRESS : address.trim();
+export const BERISSO_BASE = 'Base Berisso';
+export const BERISSO_ADDRESS = 'TECPLATA, Río de Janeiro Oeste 5071, Berisso, Buenos Aires, Argentina';
+const baseName = (base: string) => base === 'Base Buenos Aires' ? LAVAISSE_BASE : base === 'TECPLATA, La Plata, Buenos Aires, Argentina' ? BERISSO_BASE : base;
+const routeAddress = (address: string) => baseName(address.trim()) === LAVAISSE_BASE ? LAVAISSE_ADDRESS : baseName(address.trim()) === BERISSO_BASE ? BERISSO_ADDRESS : address.trim();
 
 export type ContactInfo = {
   fullName: string;
@@ -130,7 +131,14 @@ export type Client = {
 };
 
 export type QuoteStatus = 'Borrador' | 'Pendiente de envio' | 'Enviada' | 'Aprobada' | 'Rechazada';
-export type TransportKind = 'expo' | 'impo' | 'otro';
+export type TransportKind = 'expo' | 'impo' | 'carreton' | 'distribucion' | 'carga-suelta' | 'otro';
+const transportLabels: Record<TransportKind,string> = {expo:'Expo',impo:'Impo',carreton:'Carretón',distribucion:'Distribución','carga-suelta':'Carga suelta',otro:'Otro'};
+export const quoteStages = ['Cliente','Descripción del servicio','Cotización','Peajes','Adicionales','Detalle de la cotización'];
+type ContactKey = 'commercialContact' | 'operationalContact' | 'purchasingContact';
+export function getClientContacts(client?: Client) {
+  const entries: {key: ContactKey; label: string}[] = [{key:'commercialContact',label:'Comercial'},{key:'operationalContact',label:'Operativo'},{key:'purchasingContact',label:'Compras'}];
+  return entries.flatMap(({key,label}) => client?.[key]?.fullName.trim() ? [{key,label,contact:client[key]}] : []);
+}
 export type IntermediateStop = { id: string; address: string; afterStop: number; transportKind: TransportKind };
 
 export type CostTotals = {
@@ -170,6 +178,8 @@ export type RouteToll = {
 
 export type TransportQuoteDraft = {
   clientId: string;
+  contactKey?: ContactKey;
+  roundingUnit?: number;
   requestDate: string;
   quoteDate: string;
   serviceName: string;
@@ -210,6 +220,9 @@ export type PreparedQuote = {
   requiredAction: string;
   amount: number;
   text: string;
+  clientName?: string;
+  contact?: ContactInfo;
+  draft?: TransportQuoteDraft;
 };
 
 const emptyContact: ContactInfo = {
@@ -259,6 +272,7 @@ export function createQuoteDraft(clientId: string): TransportQuoteDraft {
     distanceKm: 0,
     requiredDays: 1,
     utilityPercent: '',
+    roundingUnit: 0,
     tolls: [],
     tollListStatus: "pending",
     tollRouteKey: "",
@@ -303,6 +317,27 @@ function calculateTariffFromCost(cost: number, utilityPercent: number | '') {
   return cost / ((100 - utilityPercent) / 100);
 }
 
+export function roundQuoteTariff(value: number, unit = 0) {
+  if (!Number.isFinite(value) || value < 0 || ![0,1,100,1000].includes(unit)) throw new Error('Revisá el redondeo de la tarifa.');
+  return unit === 0 ? value : Math.ceil((value - 1e-8) / unit) * unit;
+}
+
+export function getQuoteStageErrors(draft: TransportQuoteDraft, clients: Client[]) {
+  const client = clients.find(item => item.id === draft.clientId);
+  const contact = getClientContacts(client).some(item => item.key === draft.contactKey);
+  const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10) === value;
+  const stops = getRouteStops(draft);
+  const validAdditional = draft.additionals.every(item => Number.isFinite(item.amount) && item.amount >= 0 && Number.isFinite(item.discountPercent) && item.discountPercent >= 0 && item.discountPercent <= 100 && (item.previousAmount === undefined || item.previousAmount === item.amount || item.confirmedDifferentAmount));
+  return [
+    !client ? 'Seleccioná un cliente.' : !validDate(draft.requestDate) || !validDate(draft.quoteDate) ? 'Completá las fechas de solicitud y cotización.' : !contact ? 'Seleccioná un contacto del cliente. Podés cargarlo en el ABM de Clientes.' : '',
+    ![LAVAISSE_BASE,BERISSO_BASE].includes(baseName(draft.base)) ? 'Seleccioná una base de salida.' : stops.some(stop => !stop.trim()) ? 'Completá todas las direcciones y paradas intermedias.' : stops.length > 26 ? 'El recorrido admite hasta 25 tramos.' : '',
+    !Number.isFinite(draft.distanceKm) || draft.distanceKm <= 0 ? 'Completá los kilómetros del recorrido.' : !Number.isInteger(draft.requiredDays) || draft.requiredDays < 1 ? 'Completá los días de operación.' : !isValidUtility(draft.utilityPercent) ? 'Completá la utilidad.' : '',
+    !summarizeTolls(draft).ready ? 'Completá y confirmá los peajes del recorrido.' : '',
+    !validAdditional ? 'Revisá los importes, bonificaciones y diferencias de los adicionales seleccionados.' : '',
+    ![0,1,100,1000].includes(draft.roundingUnit ?? 0) ? 'Seleccioná el redondeo de la tarifa.' : ''
+  ];
+}
+
 export function calculateAdditionalAmount(item: QuoteAdditionalSelection, transportBase: number) {
   if (!Number.isFinite(item.amount) || item.amount < 0 || !Number.isFinite(item.discountPercent) || item.discountPercent < 0 || item.discountPercent > 100) throw new Error('Revisá el valor y la bonificación del adicional.');
   const gross = item.kind === 'percent' ? transportBase * item.amount / 100 : item.amount;
@@ -321,7 +356,9 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
     throw new Error("Confirmá los peajes del recorrido actual antes de preparar la cotización.");
   }
   const totalCost = baseAmount + additionalsAmount + tollSummary.total;
-  const totalAmount = calculateTariffFromCost(totalCost, draft.utilityPercent);
+  const unroundedAmount = calculateTariffFromCost(totalCost, draft.utilityPercent);
+  const totalAmount = roundQuoteTariff(unroundedAmount, draft.roundingUnit);
+  const contact = getClientContacts(client).find(item => item.key === draft.contactKey)?.contact;
   const additionalsText =
     draft.additionals.length === 0
       ? 'No se incluyen adicionales.'
@@ -338,15 +375,21 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
     clientId: draft.clientId,
     requestDate: draft.requestDate,
     quoteDate: draft.quoteDate,
-    summary: `${draft.serviceName} ${draft.transportKind.toUpperCase()}`,
+    summary: `${draft.serviceName} ${transportLabels[draft.transportKind]}`,
+    clientName: client?.alias || client?.businessName,
+    contact: contact ? {...contact} : undefined,
+    draft: JSON.parse(JSON.stringify(draft)),
     state: 'Pendiente de envio',
     requiredAction: 'Enviar al cliente',
     amount: totalAmount,
     text: [
       `Estimados ${client?.alias ?? client?.businessName ?? 'cliente'},`,
+      ...(contact ? [`Contacto: ${contact.fullName}${contact.role ? ' · ' + contact.role : ''}`,`Email: ${contact.email || '—'} · Teléfono: ${contact.phone || '—'}`] : []),
+      `Fecha de solicitud: ${draft.requestDate} · Fecha de cotización: ${draft.quoteDate}`,
       '',
       `De acuerdo con lo solicitado, enviamos cotizacion por ${draft.serviceName}.`,
-      `Operacion: ${draft.transportKind.toUpperCase()} - ${draft.isRoundTrip ? 'roundtrip' : 'solo ida'}.`,
+      `Operacion: ${transportLabels[draft.transportKind]} - ${draft.isRoundTrip ? 'roundtrip' : 'solo ida'}.`,
+      `Base de salida: ${baseName(draft.base)} · ${routeAddress(draft.base)}`,
       `Recorrido: ${getRouteDescription(draft)}.`,
       ...(activeIntermediateStops(draft).length ? [`Recorrido con paradas: ${getRouteStops(draft).join(' → ')}.`] : []),
       `Kilometros considerados: ${draft.distanceKm.toLocaleString('es-AR')} km.`,
@@ -361,7 +404,10 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       '',
       `Costo total: ${currency.format(totalCost)}`,
       `Utilidad aplicada: ${draft.utilityPercent}%`,
-      `Total cotizado: ${currency.format(totalAmount)}`,
+      `Fórmula: costo total / (1 − utilidad / 100)`,
+      `Tarifa sin redondeo: ${unroundedAmount.toLocaleString('es-AR',{style:'currency',currency:'ARS',minimumFractionDigits:2,maximumFractionDigits:2})}`,
+      `Redondeo: ${draft.roundingUnit ? 'al múltiplo superior de $' + draft.roundingUnit : 'sin redondeo adicional'}`,
+      `Total cotizado: ${totalAmount.toLocaleString('es-AR',{style:'currency',currency:'ARS',minimumFractionDigits:2,maximumFractionDigits:2})}`,
       '',
       'Las tarifas no incluyen Impuestos aplicables.',
       'Seguros de la carga a cargo del dueño de la mercadería con clausula de no repetición a favor del transporte.',
@@ -403,7 +449,7 @@ function getMainRouteStops(draft: TransportQuoteDraft) {
       ? [draft.base, draft.emptyPickup, draft.consolidationDestination, draft.deliveryPort]
       : draft.transportKind === 'impo'
         ? [draft.base, draft.fullPickupPort, draft.deconsolidationDestination, draft.emptyReturnYard]
-        : [draft.origin, draft.destination];
+        : draft.transportKind === 'otro' ? [draft.origin, draft.destination] : [draft.base, draft.origin, draft.destination];
   const cleanStops = stops.map(routeAddress);
 
   if (draft.isRoundTrip && cleanStops.length > 1) {
@@ -546,10 +592,16 @@ export function CotizadorHome({
   draft: TransportQuoteDraft;
   previousQuotes: PreparedQuote[];
   onDraftChange: (draft: TransportQuoteDraft) => void;
-  onPrepareQuote: () => void;
+  onPrepareQuote: () => string | undefined;
   totals: CostTotals;
 }) {
   const selectedClient = clients.find((client) => client.id === draft.clientId);
+  const [stage, setStage] = useState(0);
+  const [saveError, setSaveError] = useState('');
+  const stageHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { stageHeading.current?.focus(); }, [stage]);
+  const contacts = getClientContacts(selectedClient);
+  const selectedContact = contacts.find(item => item.key === draft.contactKey)?.contact;
   const routeStops = getRouteStops(draft);
   const routeKey = getTruckRouteKey(draft);
   const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
@@ -684,11 +736,12 @@ export function CotizadorHome({
 
   const updateDraft = <K extends keyof TransportQuoteDraft>(field: K, value: TransportQuoteDraft[K]) => {
     const routeFields = ['transportKind','base','origin','destination','emptyPickup','consolidationDestination','deliveryPort','fullPickupPort','deconsolidationDestination','emptyReturnYard','isRoundTrip','intermediateStops'];
-    onDraftChange({ ...draft, ...(routeFields.includes(field) ? {returnFromStop: undefined} : {}), [field]: value });
+    setSaveError('');
+    onDraftChange({ ...draft, ...(field === 'clientId' ? {contactKey: undefined} : {}), ...(routeFields.includes(field) ? {returnFromStop: undefined} : {}), [field]: value });
   };
 
   const mainStopLabels = draft.transportKind === 'expo' ? ['Base','Retiro de vacío','Consolidado','Puerto de entrega']
-    : draft.transportKind === 'impo' ? ['Base','Puerto retiro full','Desconsolidado','Devolución de vacío'] : ['Origen','Destino'];
+    : draft.transportKind === 'impo' ? ['Base','Retiro de cargado','Desconsolidado','Devolución de vacío'] : draft.transportKind === 'otro' ? ['Origen','Destino'] : ['Base','Lugar de carga','Lugar de descarga'];
   const segmentLabels = [...mainStopLabels.slice(0,-1).map((label,index) => `${label} → ${mainStopLabels[index+1]}`),
     ...(draft.isRoundTrip ? [`${mainStopLabels[mainStopLabels.length-1]} → ${mainStopLabels[0]} (regreso)`] : [])];
   const intermediateStops = (draft.intermediateStops ?? []).filter(stop => stop.transportKind === draft.transportKind)
@@ -733,43 +786,19 @@ export function CotizadorHome({
     if (draft.additionals.some(other => other.id === item.id)) updateDraft('additionals', draft.additionals.map(other => other.id === item.id ? nextItem : other));
   };
 
-  const canPrepare =
-    tollReady && utilityValid &&
-    Boolean(draft.clientId) &&
-    draft.distanceKm > 0 &&
-    draft.requiredDays > 0 &&
-    draft.additionals.every(
-      (item) => item.previousAmount === undefined || item.previousAmount === item.amount || item.confirmedDifferentAmount
-    );
+  const stageErrors = getQuoteStageErrors(draft, clients);
+  const canPrepare = stageErrors.every(error => !error);
+  const roundedTariff = quoteTariff === null ? null : roundQuoteTariff(quoteTariff,draft.roundingUnit);
+  const exactCurrency = (value: number) => value.toLocaleString('es-AR',{style:'currency',currency:'ARS',minimumFractionDigits:2,maximumFractionDigits:2});
+  const changeStage = (next: number) => { setSaveError(''); setStage(next); };
 
   return (
-    <>
-      <header className="topbar quote-topbar">
-        <div>
-          <h1>Cotizador</h1>
-          <p className="page-description">Cada viaje comienza con una cotización bien hecha</p>
-        </div>
-      </header>
-
-      <section className="metric-grid" aria-label="Resumen de cotizacion">
-        <Metric label="Cliente" value={selectedClient?.alias || 'Sin cliente'} hint={selectedClient?.businessName || 'Crear o seleccionar cliente'} />
-        <Metric label="Kilometros" value={`${draft.distanceKm.toLocaleString('es-AR')} km`} hint={draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'} />
-        <Metric label="Dias" value={`${draft.requiredDays}`} hint="800 km cada 24 horas" />
-        <Metric label="Costo" value={currency.format(quoteCost)} hint={tollReady ? "Transporte + peajes + adicionales" : "Subtotal: peajes pendientes"} />
-        <Metric label="Utilidad" value={utilityValid ? `${draft.utilityPercent}%` : "Pendiente"} hint="Sobre tarifa final" />
-        <Metric label="Tarifa" value={tollReady && quoteTariff !== null ? currency.format(quoteTariff) : "Pendiente"} hint={!utilityValid ? "Completar utilidad" : tollReady ? "Incluye peajes y utilidad" : "Completar peajes"} />
-      </section>
-
-      <section className="content-grid quote-builder-grid">
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Servicio base</p>
-              <h2>Transporte terrestre</h2>
-            </div>
-            <Truck size={20} />
-          </div>
-
+    <div className="quote-wizard">
+      <header className="topbar quote-topbar"><div><h1>Cotizador</h1><p className="page-description">Etapa {stage+1} de {quoteStages.length}</p></div></header>
+      <nav className="quote-steps" aria-label="Etapas del cotizador">{quoteStages.map((label,index) => <button key={label} type="button" aria-current={stage===index ? 'step' : undefined} disabled={index>stage} onClick={() => changeStage(index)}><span>{index+1}</span>{label}</button>)}</nav>
+      <div className="panel wizard-panel">
+        <div className="panel-header"><h2 ref={stageHeading} tabIndex={-1}>{quoteStages[stage]}</h2><span>{stage+1} / 6</span></div>
+        <section hidden={stage!==0} aria-label="Datos del cliente">
           <div className="form-grid">
             <label>
               Cliente
@@ -790,49 +819,54 @@ export function CotizadorHome({
               Fecha cotizacion
               <input type="date" value={draft.quoteDate} onChange={(event) => updateDraft('quoteDate', event.target.value)} />
             </label>
+            <label>Contacto<select aria-label="Contacto" value={draft.contactKey ?? ''} onChange={event => updateDraft('contactKey',event.target.value as ContactKey)}>
+              <option value="">Seleccionar contacto</option>{contacts.map(item => <option key={item.key} value={item.key}>{item.contact.fullName} · {item.label}</option>)}
+            </select></label>
+          </div>
+          {selectedContact && <p className="contact-summary">{selectedContact.role} · {selectedContact.email || 'Sin email'} · {selectedContact.phone || 'Sin teléfono'}</p>}
+        </section>
+        <section hidden={stage!==1} aria-label="Descripción del servicio">
+          <div className="form-grid">
             <label>
               Tipo transporte
               <select value={draft.transportKind} onChange={(event) => updateDraft('transportKind', event.target.value as TransportKind)}>
                 <option value="expo">Expo</option>
                 <option value="impo">Impo</option>
-                <option value="otro">Otro</option>
+                <option value="carreton">Carretón</option><option value="distribucion">Distribución</option><option value="carga-suelta">Carga suelta</option>{draft.transportKind === 'otro' && <option value="otro">Otro (anterior)</option>}
               </select>
             </label>
             <label>
-              Base
+              Base de salida
               <select value={baseName(draft.base)} onChange={(event) => updateDraft('base', event.target.value)}>
                 <option>{LAVAISSE_BASE}</option>
-                <option>Base Zarate</option>
-                <option>TECPLATA, La Plata, Buenos Aires, Argentina</option>
+                <option>{BERISSO_BASE}</option>
               </select>
-              {baseName(draft.base) === LAVAISSE_BASE && <small>{LAVAISSE_ADDRESS}</small>}
+              <small>{routeAddress(draft.base)}</small>
             </label>
-            <label className="check-inline">
-              <input checked={draft.isRoundTrip} type="checkbox" onChange={(event) => updateDraft('isRoundTrip', event.target.checked)} />
-              Roundtrip
-            </label>
+            <label>Modalidad del viaje<select value={draft.isRoundTrip ? 'roundtrip' : 'oneway'} onChange={event => updateDraft('isRoundTrip',event.target.value === 'roundtrip')}><option value="roundtrip">Roundtrip</option><option value="oneway">Solo ida</option></select></label>
           </div>
+
 
           {draft.transportKind === 'expo' && (
             <div className="form-grid route-grid">
-              <AddressField label="Retiro de vacio" value={draft.emptyPickup} onChange={(value) => updateDraft('emptyPickup', value)} />
-              <AddressField label="Consolidado" value={draft.consolidationDestination} onChange={(value) => updateDraft('consolidationDestination', value)} />
-              <AddressField label="Puerto de entrega" value={draft.deliveryPort} onChange={(value) => updateDraft('deliveryPort', value)} />
+              <AddressField label="Retiro de vacío" value={draft.emptyPickup} onChange={(value) => updateDraft('emptyPickup', value)} />
+              <AddressField label="Lugar de consolidado" value={draft.consolidationDestination} onChange={(value) => updateDraft('consolidationDestination', value)} />
+              <AddressField label="Entrega de cargado" value={draft.deliveryPort} onChange={(value) => updateDraft('deliveryPort', value)} />
             </div>
           )}
 
           {draft.transportKind === 'impo' && (
             <div className="form-grid route-grid">
-              <AddressField label="Puerto retiro full" value={draft.fullPickupPort} onChange={(value) => updateDraft('fullPickupPort', value)} />
-              <AddressField label="Desconsolidado" value={draft.deconsolidationDestination} onChange={(value) => updateDraft('deconsolidationDestination', value)} />
-              <AddressField label="Plazoleta devolucion vacio" value={draft.emptyReturnYard} onChange={(value) => updateDraft('emptyReturnYard', value)} />
+              <AddressField label="Retiro de cargado" value={draft.fullPickupPort} onChange={(value) => updateDraft('fullPickupPort', value)} />
+              <AddressField label="Lugar de desconsolidado" value={draft.deconsolidationDestination} onChange={(value) => updateDraft('deconsolidationDestination', value)} />
+              <AddressField label="Devolución de vacío" value={draft.emptyReturnYard} onChange={(value) => updateDraft('emptyReturnYard', value)} />
             </div>
           )}
 
-          {draft.transportKind === 'otro' && (
+          {draft.transportKind !== 'expo' && draft.transportKind !== 'impo' && (
             <div className="form-grid route-grid">
-              <AddressField label="Origen" value={draft.origin} onChange={(value) => updateDraft('origin', value)} />
-              <AddressField label="Destino" value={draft.destination} onChange={(value) => updateDraft('destination', value)} />
+              <AddressField label="Lugar de carga" value={draft.origin} onChange={(value) => updateDraft('origin', value)} />
+              <AddressField label="Lugar de descarga" value={draft.destination} onChange={(value) => updateDraft('destination', value)} />
             </div>
           )}
 
@@ -862,9 +896,12 @@ export function CotizadorHome({
             })}
           </section>
 
+
+        </section>
+        <section hidden={stage!==2} aria-label="Cálculo de cotización">
           <div className="form-grid">
             <label>
-              Km recorrido
+              Kilómetros recorridos
               <input
                 min="0"
                 type="number"
@@ -881,7 +918,7 @@ export function CotizadorHome({
               />
             </label>
             <label>
-              Dias calculados
+              Días de operación
               <input min="1" type="number" value={draft.requiredDays} onChange={(event) => { manualDistanceVersion.current += 1; updateDraft('requiredDays', Number(event.target.value)); }} />
             </label>
             <label>
@@ -900,24 +937,11 @@ export function CotizadorHome({
               />
               {!utilityValid && <span id="utility-error" className="field-error" role="alert">Ingresá una utilidad entre 0 y menos de 100.</span>}
             </label>
-            <label>
-              Estado
-              <select value={draft.state} onChange={(event) => updateDraft('state', event.target.value as QuoteStatus)}>
-                {initialQuoteStatuses.map((status) => (
-                  <option key={status}>{status}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Accion requerida
-              <select value={draft.requiredAction} onChange={(event) => updateDraft('requiredAction', event.target.value)}>
-                {initialRequiredActions.map((action) => (
-                  <option key={action}>{action}</option>
-                ))}
-              </select>
-            </label>
           </div>
+          <div className="metric-grid wizard-costs"><Metric label="Costo del viaje" value={currency.format(baseAmount)} hint="Kilómetros × costo por km + días × costo por día" /><Metric label="Costo por kilómetro" value={currency.format(totals.perKm)} hint="Estructura de costos" /><Metric label="Costo por día" value={currency.format(totals.perDay)} hint="800 km por día de operación" /></div>
           {distanceStatus && <p className="muted-copy route-status" role="status">{distanceStatus}</p>}
+        </section>
+        <section hidden={stage!==3} aria-label="Etapa de peajes">
           <section className="toll-section" aria-label="Peajes para camión">
             <div className="panel-header">
               <div><p className="eyebrow">Tránsito pesado</p><h2>Peajes del recorrido</h2></div>
@@ -1001,17 +1025,8 @@ export function CotizadorHome({
               </div>
             </details>
           </section>
-        </div>
-
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Adicionales</p>
-              <h2>Adicionales de la cotización</h2>
-            </div>
-            <Plus size={20} />
-          </div>
-
+        </section>
+        <section hidden={stage!==4} aria-label="Etapa de adicionales">
           <div className="additional-list">
             {additionalRows.length === 0 ? (
               <p className="muted-copy">Creá los adicionales en el ABM de Adicionales.</p>
@@ -1052,15 +1067,33 @@ export function CotizadorHome({
               })
             )}
           </div>
-        </div>
-      </section>
-      <div className="quote-submit">
-        <button className="primary-button" disabled={!canPrepare} onClick={onPrepareQuote} type="button">
-          <FileText size={18} />
-          Preparar cotización
-        </button>
+        </section>
+        <section hidden={stage!==5} aria-label="Detalle final">
+          <div className="review-details"><div><h3>Cliente y contacto</h3><p><strong>{selectedClient?.alias || selectedClient?.businessName}</strong></p><p>{selectedClient?.businessName} · CUIT {selectedClient?.cuit}</p><p>{selectedContact?.fullName} · {selectedContact?.role}</p><p>{selectedContact?.email} · {selectedContact?.phone}</p><p>Solicitud: {draft.requestDate} · Cotización: {draft.quoteDate}</p></div>
+          <div><h3>Servicio</h3><p>{transportLabels[draft.transportKind]} · {draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'}</p><p>{baseName(draft.base)} · {routeAddress(draft.base)}</p><p>{draft.distanceKm.toLocaleString('es-AR')} km · {draft.requiredDays} día(s) de operación</p></div></div>
+          <h3>Recorrido y paradas</h3><ol className="review-route">{routeStops.map((stop,index) => <li key={index}>{stop}</li>)}</ol>
+          <div className="review-details"><div><h3>Costos y tarifa</h3><dl className="review-totals">
+            <div><dt>Subtotal costo del viaje</dt><dd>{exactCurrency(baseAmount)}</dd></div>
+            <div><dt>Peajes</dt><dd>{exactCurrency(tollSummary.total)}</dd></div>
+            <div><dt>Adicionales</dt><dd>{exactCurrency(additionalsAmount)}</dd></div>
+            <div className="review-emphasis"><dt>Total costo</dt><dd>{exactCurrency(quoteCost)}</dd></div>
+            <div><dt>Utilidad</dt><dd>{utilityValid ? draft.utilityPercent+'%' : 'Pendiente'}</dd></div>
+            <div><dt>Tarifa sin redondeo</dt><dd>{quoteTariff === null ? 'Pendiente' : exactCurrency(quoteTariff)}</dd></div>
+          </dl><p className="tariff-formula">Tarifa = total costo / (1 − utilidad / 100)</p>
+          <label className="rounding-control">Redondeo<select value={draft.roundingUnit ?? 0} onChange={event => updateDraft('roundingUnit',Number(event.target.value))}><option value={0}>Sin redondeo adicional</option><option value={1}>Al peso superior</option><option value={100}>Al múltiplo superior de $100</option><option value={1000}>Al múltiplo superior de $1.000</option></select></label>
+          <p>Ajuste por redondeo: {roundedTariff === null || quoteTariff === null ? 'Pendiente' : exactCurrency(roundedTariff-quoteTariff)}</p>
+          <div className="toll-total"><span>Tarifa final</span><strong>{roundedTariff === null ? 'Pendiente' : exactCurrency(roundedTariff)}</strong></div></div>
+          <div><h3>Peajes incluidos</h3>{getTollGroups(draft).map(group => <div key={group.id}><h4>{group.title}</h4>{!group.rows.length ? <p>Sin peajes.</p> : <ul>{group.rows.map(({toll}) => <li key={toll.id}>{toll.name} · {toll.locality} · {toll.travelSense || 'Sentido sin informar'} — {toll.amount === null ? 'Pendiente' : exactCurrency(toll.amount)}</li>)}</ul>}</div>)}
+          <h3>Adicionales incluidos</h3>{!draft.additionals.length ? <p>Sin adicionales.</p> : <ul className="review-additionals">{draft.additionals.map(item => <li key={item.id}><strong>{item.name} — {exactCurrency(calculateAdditionalAmount(item,baseAmount))}</strong><p>{item.kind==='percent' ? item.amount+'% del transporte' : exactCurrency(item.amount)} · Bonificación {item.discountPercent}%</p>{item.description && <p>{item.description}</p>}</li>)}</ul>}</div></div>
+        </section>
       </div>
-    </>
+      <footer className="wizard-footer">
+        <button className="ghost-button" type="button" disabled={stage===0} onClick={() => changeStage(stage-1)}>Anterior</button>
+        <p role="status">{saveError || (stage===5 ? stageErrors.find(Boolean) : stageErrors[stage]) || ''}</p>
+        {stage<5 ? <button className="primary-button" type="button" disabled={Boolean(stageErrors[stage])} onClick={() => changeStage(stage+1)}>Siguiente</button>
+          : <button className="primary-button" type="button" disabled={!canPrepare} onClick={() => {try {setSaveError(onPrepareQuote() || '');} catch(error) {setSaveError(error instanceof Error ? error.message : 'No se pudo guardar la cotización.');}}}><Save size={20} /> Guardar</button>}
+      </footer>
+    </div>
   );
 }
 
@@ -1325,7 +1358,7 @@ export function QuotesModule({
                 return (
                   <details className="quote-detail" key={quoteItem.id}>
                     <summary>
-                      <strong>{client?.alias ?? 'Cliente'}</strong>
+                      <strong>{quoteItem.clientName || client?.alias || 'Cliente'}</strong>
                       <span>{quoteItem.quoteDate} · {quoteItem.state} · {currency.format(quoteItem.amount)}</span>
                     </summary>
                     <pre>{quoteItem.text}</pre>
