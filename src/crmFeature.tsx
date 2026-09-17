@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import operatorCatalog from '../netlify/lib/toll-operators.json';
 import {
   Building2,
   ClipboardList,
@@ -145,7 +146,7 @@ export type QuoteAdditionalSelection = {
 export type RouteToll = {
   id: string; name: string; locality: string; road: string; province: string;
   amount: number | null; source: 'pending' | 'automatic' | 'official' | 'manual';
-  payment?: "" | "tag" | "cash";
+  payment?: "" | "tag" | "cash" | "electronic";
   journey?: "outbound" | "return";
   operator?: string; period?: string; direction?: string; stationSourceUrl?: string;
   sourceUrl?: string; sourcePage?: string; category?: string; checkedAt?: string; lookupMessage?: string;
@@ -175,7 +176,7 @@ export type TransportQuoteDraft = {
   tollRouteKey: string;
   truck: { tractorAxles: number; height: number; weight: number; length: number };
   /** Legacy payment, used only for existing rows without their own selection. */
-  tollPayment: "" | "tag" | "cash";
+  tollPayment: "" | "tag" | "cash" | "electronic";
   state: QuoteStatus;
   requiredAction: string;
   additionals: QuoteAdditionalSelection[];
@@ -824,7 +825,15 @@ export function CotizadorHome({
             {routeStatus && <p className="muted-copy route-status" role="status">{routeStatus}</p>}
             {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Se detectan automáticamente al completar el recorrido.' : 'Recorrido confirmado sin peajes.'}</p>}
             <p className="muted-copy"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Estaciones: © OpenStreetMap contributors (ODbL)</a>. Detección aproximada, editable.</p>
-            <p className="muted-copy">El precio se busca automáticamente al completar la forma de pago, el horario y el sentido de cada pasada. Cobertura: estaciones verificadas de AUBASA y AUSOL.</p>
+            <p className="muted-copy">El precio se busca automáticamente al completar los datos de cada pasada. Catálogo nacional: {operatorCatalog.operators.length} operadores. Las tarifas de seis ejes sin verificar quedan pendientes.</p>
+            <details className="truck-profile">
+              <summary>Consultar concesionarias y fuentes oficiales</summary>
+              <p className="muted-copy">Revisado el {operatorCatalog.reviewedOn}. Las concesiones en transición requieren confirmar el operador vigente.</p>
+              {operatorCatalog.operators.map(operator => <p className="toll-source" key={operator.id}><a href={operator.page} target="_blank" rel="noreferrer">{operator.name}</a> · {operator.scope}{operator.notes ? ' · ' + operator.notes : ''}</p>)}
+              <h3>Adjudicaciones pendientes de confirmar operación</h3>
+              {operatorCatalog.transitions.map(item => <p className="toll-source" key={item.id}><a href={item.source} target="_blank" rel="noreferrer">{item.tramo}</a> · {item.adjudicatario}. {item.status}</p>)}
+              {operatorCatalog.unresolved.map(item => <p className="toll-source" key={item.tramo}><a href={item.source} target="_blank" rel="noreferrer">{item.tramo}</a> · {item.reason}</p>)}
+            </details>
             <p className="toll-source tariff-lookup-status" role="status">{officialStatus}</p>
             {getTollGroups(draft).map(group => (
               <section className="toll-journey" key={group.id} aria-label={group.title}>
@@ -844,10 +853,10 @@ export function CotizadorHome({
                   </div>
                   <div className="form-grid">
                     <label>Forma de pago en esta estación<select aria-label={'Pago del peaje ' + (index + 1)} value={toll.payment ?? draft.tollPayment} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, payment: event.target.value as NonNullable<RouteToll['payment']>, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))}>
-                      <option value="">Seleccionar</option><option value="tag">TelePASE</option><option value="cash">Efectivo</option>
+                      <option value="">Seleccionar</option><option value="tag">TelePASE</option><option value="cash">Efectivo</option><option value="electronic">Electrónico manual (QR / tarjeta)</option>
                     </select></label>
                     <label>Concesionaria<select aria-label={'Concesionaria del peaje ' + (index + 1)} value={toll.operator ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, operator: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))}>
-                      <option value="">Seleccionar</option><option value="aubasa">AUBASA</option><option value="ausol">AUSOL · Acceso Norte</option><option value="other">Otra concesionaria</option>
+                      <option value="">Seleccionar</option>{operatorCatalog.operators.map(operator => <option key={operator.id} value={operator.id}>{operator.name}</option>)}<option value="other">Otra concesionaria</option>
                     </select></label>
                     <label>Horario del paso<select aria-label={'Horario del peaje ' + (index + 1)} value={toll.period ?? ''} onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, period: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))}>
                       <option value="">Confirmar</option><option value="normal">No pico</option><option value="peak">Pico</option>
@@ -858,6 +867,7 @@ export function CotizadorHome({
                   </div>
                   {toll.stationSourceUrl && <p className="toll-source"><a href={toll.stationSourceUrl} target="_blank" rel="noreferrer">Ver estación en el mapa</a> · Localidad aproximada: revisar</p>}
                   <p className="toll-source">{toll.lookupMessage}</p>
+                  {!toll.sourceUrl && toll.sourcePage && <p className="toll-source"><a href={toll.sourcePage} target="_blank" rel="noreferrer">Consultar fuente de la concesionaria</a> · Importe pendiente de verificación</p>}
                   {toll.sourceUrl && <p className="toll-source"><a href={toll.sourceUrl} target="_blank" rel="noreferrer">Ver publicación oficial</a> · Categoría {toll.category} · Consultada {toll.checkedAt ? new Date(toll.checkedAt).toLocaleString('es-AR') : ''}{toll.source === 'manual' ? ' · Importe corregido manualmente' : ''}</p>}
                   <div className="toll-card-heading"><small>{[toll.road, toll.province].filter(Boolean).join(' · ')}</small>
                     {<button className="ghost-button" type="button" aria-label={'Quitar peaje ' + (index + 1)} onClick={() => onDraftChange({ ...draft, tolls: draft.tolls.filter(item => item.id !== toll.id), tollListStatus: 'pending' })}>Quitar</button>}

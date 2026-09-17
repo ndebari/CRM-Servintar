@@ -260,5 +260,282 @@
       }
     },
     "reviewedOn": "2026-09-16"
+  },
+  {
+    "operator": "ausa",
+    "direction": "both",
+    "category": "Pesados: 5 ejes o más",
+    "page": "https://entedelaciudad.gov.ar/tarifas-autopistas-telepeaje/",
+    "document": "https://entedelaciudad.gov.ar/tarifas-autopistas-telepeaje/",
+    "sha256": "5598540bec28a20fd69dcc67004ab20b0a8524957ad75036b08ba2d11a1f3619",
+    "reviewedOn": "2026-09-17",
+    "stations": [
+      "illia",
+      "retiro ii",
+      "salguero",
+      "sarmiento"
+    ],
+    "rates": {
+      "tag": {
+        "normal": 8069.18,
+        "peak": 22670.03
+      }
+    }
+  },
+  {
+    "operator": "ausa",
+    "direction": "both",
+    "category": "Pesados: 5 ejes o más",
+    "page": "https://entedelaciudad.gov.ar/tarifas-autopistas-telepeaje/",
+    "document": "https://entedelaciudad.gov.ar/tarifas-autopistas-telepeaje/",
+    "sha256": "5598540bec28a20fd69dcc67004ab20b0a8524957ad75036b08ba2d11a1f3619",
+    "reviewedOn": "2026-09-17",
+    "stations": [
+      "paseo del bajo"
+    ],
+    "rates": {
+      "tag": {
+        "normal": 13263.22,
+        "peak": 13263.22
+      }
+    }
+  },
+  {
+    "operator": "oeste",
+    "stations": [
+      "lujan",
+      "general rodriguez",
+      "ituzaingo",
+      "republica",
+      "posadas",
+      "dolores prats",
+      "derqui",
+      "vergara",
+      "santa rosa",
+      "barcala",
+      "martin fierro",
+      "brandsen",
+      "quintana",
+      "buen ayre",
+      "malvinas",
+      "san fernando",
+      "general martin rodriguez"
+    ],
+    "direction": "both",
+    "category": "6 (más de 4 y hasta 6 ejes)",
+    "page": "https://www.auoeste.com.ar/tarifas",
+    "document": "https://back.auoeste.com.ar/wp-content/uploads/2026/03/TARIFAS-WEB.jpg",
+    "sha256": "65b55ff2208280afd7df519f78f84f6dc005a99249369bf18736e8fd9d492bca",
+    "rates": {
+      "tag": {
+        "normal": 3976.59,
+        "peak": 4771.95
+      },
+      "cash": {
+        "normal": 8000,
+        "peak": 9600
+      },
+      "electronic": {
+        "normal": 7953.18,
+        "peak": 9543.9
+      }
+    },
+    "reviewedOn": "2026-09-17",
+    "verification": "oeste-cms"
+  },
+  {
+    "operator": "pentavia",
+    "stations": [
+      "olivera",
+      "9 de julio",
+      "nueve de julio",
+      "trenque lauquen"
+    ],
+    "direction": "both",
+    "category": "4 (más de 4 y hasta 6 ejes)",
+    "page": "https://pentavia.com.ar/tarifas-peaje/",
+    "document": "https://pentavia.com.ar/wp-content/uploads/2026/08/cuadro-tarifario-20260828.jpg",
+    "sha256": "6e097bcd626384fa80fdf8ec651c25ddf8641d434c629bb7e7be26f8c2a8cd1a",
+    "rates": {
+      "tag": {
+        "normal": 7148.39,
+        "peak": 7148.39
+      },
+      "cash": {
+        "normal": 14300,
+        "peak": 14300
+      },
+      "electronic": {
+        "normal": 14296.78,
+        "peak": 14296.78
+      }
+    },
+    "reviewedOn": "2026-09-17",
+    "verification": "linked-document"
+  },
+  {
+    "operator": "aumesa",
+    "stations": [
+      "zarate",
+      "zarate brazo largo",
+      "zarate (rn12)",
+      "colonia elia"
+    ],
+    "direction": "both",
+    "category": "6 (6 ejes)",
+    "page": "https://aumesa.com.ar/tarifas/",
+    "document": "https://aumesa.com.ar/wp-content/uploads/2026/09/nuevas-tarifas-zarate-Colonia-Elia-11-9-1600x1063.jpg",
+    "sha256": "2f6ed3fb88e1b85933c5806a54dc9ff8c2ab696af436d3550dea1ca349e03b3c",
+    "rates": {
+      "tag": {
+        "normal": 32584.19,
+        "peak": 32584.19
+      },
+      "electronic": {
+        "normal": 65168.37,
+        "peak": 65168.37
+      }
+    },
+    "reviewedOn": "2026-09-17",
+    "verification": "linked-document"
+  },
+  {
+    "operator": "aumesa",
+    "stations": [
+      "yerua",
+      "piedritas"
+    ],
+    "direction": "both",
+    "category": "5 (5 y 6 ejes)",
+    "page": "https://aumesa.com.ar/tarifas/",
+    "document": "https://aumesa.com.ar/wp-content/uploads/2026/09/nuevas-tarifas-Yerua-Piedritas-6-9ok2.jpg",
+    "sha256": "adc82198f3a822dbdbc98b32eefd0b5664478b5bd47ac1688350c6abed63d619",
+    "rates": {
+      "tag": {
+        "normal": 9361.92,
+        "peak": 9361.92
+      },
+      "electronic": {
+        "normal": 18723.83,
+        "peak": 18723.83
+      }
+    },
+    "reviewedOn": "2026-09-17",
+    "verification": "linked-document"
+  },
+  {
+    "operator": "delta",
+    "stations": [
+      "victoria",
+      "rosario-victoria",
+      "puente rosario-victoria"
+    ],
+    "direction": "both",
+    "category": "6 (5 y 6 ejes)",
+    "page": "https://conexionaltodelta.com/tarifas/",
+    "document": "https://conexionaltodelta.com/wp-content/uploads/2026/04/Cartel-Tarifas-scaled.jpg",
+    "sha256": "27a47d9762e1922c41f88adda7e82edbc3f04b20c61cf54fb11b7863daf0bd94",
+    "rates": {
+      "tag": {
+        "normal": 4427.63,
+        "peak": 4427.63
+      },
+      "electronic": {
+        "normal": 8855.26,
+        "peak": 8855.26
+      }
+    },
+    "reviewedOn": "2026-09-17",
+    "verification": "linked-document"
+  },
+  {
+    "operator": "sierras",
+    "stations": [
+      "toledo",
+      "bouwer",
+      "piedras moras",
+      "arroyo tegua",
+      "monte cristo",
+      "malagueno",
+      "la calera",
+      "estacion juarez celman",
+      "juarez celman",
+      "villa allende",
+      "pilar",
+      "bialet masse",
+      "molinari",
+      "cosquin"
+    ],
+    "direction": "both",
+    "category": "6 (5 o 6 ejes) · pago manual",
+    "page": "https://caminosdelassierras.com.ar/tarifario/",
+    "document": "https://caminosdelassierras.com.ar/wp-content/uploads/2026/09/Tarifario-2026-09-05-scaled.jpg",
+    "sha256": "d3f355adfcdae331702dfa29f32bbdbe5132f3f20a215fdd330f6a69b1b32757",
+    "rates": {
+      "cash": {
+        "normal": 24000,
+        "peak": 24000
+      }
+    },
+    "reviewedOn": "2026-09-17",
+    "verification": "linked-document"
+  },
+  {
+    "operator": "corresur",
+    "stations": [
+      "aguero",
+      "riccheri",
+      "riccheri (aguero)",
+      "boulogne sur mer",
+      "donovan",
+      "mercado central",
+      "ezeiza",
+      "monte grande",
+      "tristan suarez"
+    ],
+    "direction": "both",
+    "category": "6 (más de 4 y hasta 6 ejes)",
+    "page": "https://www.corresur.com.ar/tarifas.php",
+    "document": "https://www.corresur.com.ar/tarifas.php",
+    "sha256": "ce8bc862fffd7b1d6657c749cbbda8520a0dabd1d77976113c747357b5a00d5d",
+    "rates": {
+      "tag": {
+        "normal": 6195.3,
+        "peak": 7148.39
+      },
+      "electronic": {
+        "normal": 12390.59,
+        "peak": 14296.78
+      }
+    },
+    "reviewedOn": "2026-09-17",
+    "verification": "corresur-section"
+  },
+  {
+    "operator": "corresur",
+    "stations": [
+      "canuelas",
+      "uribelarrea",
+      "hinojo",
+      "vasconia",
+      "el dorado"
+    ],
+    "direction": "both",
+    "category": "4 (más de 4 y hasta 6 ejes)",
+    "page": "https://www.corresur.com.ar/tarifas.php",
+    "document": "https://www.corresur.com.ar/tarifas.php",
+    "sha256": "ce8bc862fffd7b1d6657c749cbbda8520a0dabd1d77976113c747357b5a00d5d",
+    "rates": {
+      "tag": {
+        "normal": 7148.39,
+        "peak": 7148.39
+      },
+      "electronic": {
+        "normal": 14296.78,
+        "peak": 14296.78
+      }
+    },
+    "reviewedOn": "2026-09-17",
+    "verification": "corresur-section"
   }
 ]

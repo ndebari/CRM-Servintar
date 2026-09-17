@@ -9,7 +9,8 @@ const temp = await mkdtemp(fileURLToPath(new URL('./.quote-test-', import.meta.u
 after(() => rm(temp, { recursive: true, force: true }));
 const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
-await writeFile(`${temp}/quote.mjs`, compiled.outputText);
+const catalogUrl = new URL('../netlify/lib/toll-operators.json', import.meta.url).href;
+await writeFile(`${temp}/quote.mjs`, compiled.outputText.replace("'../netlify/lib/toll-operators.json'", JSON.stringify(catalogUrl) + " with { type: 'json' }"));
 const { calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
 
 function draftWithTolls(amount) {

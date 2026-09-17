@@ -1,0 +1,478 @@
+{
+  "reviewedOn": "2026-09-17",
+  "coverage": "Catálogo nacional de operadores identificados en fuentes oficiales. Cobertura tarifaria parcial; concesiones en transición pendientes de cierre.",
+  "operators": [
+    {
+      "id": "aubasa",
+      "name": "AUBASA",
+      "scope": "Buenos Aires · Buenos Aires–La Plata y corredor atlántico",
+      "page": "https://aubasa.com.ar/tarifas-aubasa/",
+      "source": "https://aubasa.com.ar/tarifas-aubasa/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "dock sud",
+        "hudson",
+        "gutierrez",
+        "bernal",
+        "quilmes",
+        "berazategui",
+        "villa elisa",
+        "acceso sudeste",
+        "samborombon",
+        "maipu",
+        "la huella",
+        "general madariaga",
+        "madariaga",
+        "mar chiquita"
+      ],
+      "notes": "",
+      "tariffStatus": "partial-verified"
+    },
+    {
+      "id": "ausol",
+      "name": "AUSOL · Acceso Norte",
+      "scope": "Buenos Aires · Acceso Norte",
+      "page": "https://www.ausol.com.ar/tarifas",
+      "source": "https://www.ausol.com.ar/tarifas",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "debenedetti",
+        "marquez",
+        "tigre",
+        "capitan juan de san martin",
+        "camino real",
+        "buen ayre",
+        "ruta 202",
+        "belgrano",
+        "ruta 197",
+        "campana",
+        "pilar"
+      ],
+      "notes": "",
+      "tariffStatus": "partial-verified"
+    },
+    {
+      "id": "ausa",
+      "name": "AUSA · Autopistas urbanas",
+      "scope": "CABA · autopistas urbanas",
+      "page": "https://entedelaciudad.gov.ar/tarifas-autopistas-telepeaje/",
+      "source": "https://entedelaciudad.gov.ar/tarifas-autopistas-telepeaje/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "dellepiane",
+        "avellaneda",
+        "alberti",
+        "25 de mayo",
+        "perito moreno",
+        "illia",
+        "retiro ii",
+        "salguero",
+        "sarmiento",
+        "paseo del bajo"
+      ],
+      "notes": "",
+      "tariffStatus": "partial-verified"
+    },
+    {
+      "id": "oeste",
+      "name": "Grupo Concesionario del Oeste",
+      "scope": "Buenos Aires · Acceso Oeste",
+      "page": "https://www.auoeste.com.ar/tarifas",
+      "source": "https://autogestion.telepase.com.ar/terminos-y-condiciones",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "lujan",
+        "general rodriguez",
+        "ituzaingo",
+        "republica",
+        "posadas",
+        "dolores prats",
+        "derqui",
+        "vergara",
+        "santa rosa",
+        "barcala",
+        "martin fierro",
+        "brandsen",
+        "quintana",
+        "buen ayre",
+        "malvinas",
+        "san fernando",
+        "general martin rodriguez"
+      ],
+      "notes": "",
+      "tariffStatus": "partial-verified"
+    },
+    {
+      "id": "ceamse",
+      "name": "CEAMSE · Camino del Buen Ayre",
+      "scope": "Buenos Aires · Camino del Buen Ayre",
+      "page": "https://www.ceamse.gov.ar/buen-ayre/",
+      "source": "https://www.ceamse.gov.ar/buen-ayre/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "buen ayre",
+        "cabecera norte",
+        "cabecera oeste",
+        "gorriti",
+        "debenedetti"
+      ],
+      "notes": "El cuadro publicado llega a cinco ejes; no se extrapola a seis.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "corresur",
+      "name": "Rutas Sur Atlántico · Corresur",
+      "scope": "Buenos Aires · RN 3, 205, 226 y acceso sur",
+      "page": "https://www.corresur.com.ar/tarifas.php",
+      "source": "https://www.corresur.com.ar/tarifas.php",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "aguero",
+        "riccheri",
+        "riccheri (aguero)",
+        "boulogne sur mer",
+        "donovan",
+        "mercado central",
+        "ezeiza",
+        "monte grande",
+        "tristan suarez",
+        "canuelas",
+        "uribelarrea",
+        "hinojo",
+        "vasconia",
+        "el dorado"
+      ],
+      "notes": "",
+      "tariffStatus": "partial-verified"
+    },
+    {
+      "id": "pentavia",
+      "name": "Corredor Vial 5 · Pentavía",
+      "scope": "Buenos Aires / La Pampa · RN 5",
+      "page": "https://pentavia.com.ar/tarifas-peaje/",
+      "source": "https://pentavia.com.ar/tarifas-peaje/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "olivera",
+        "9 de julio",
+        "nueve de julio",
+        "trenque lauquen"
+      ],
+      "notes": "",
+      "tariffStatus": "partial-verified"
+    },
+    {
+      "id": "aumesa",
+      "name": "Autovía del Mercosur",
+      "scope": "Buenos Aires / Entre Ríos / Corrientes · tramo Oriental",
+      "page": "https://aumesa.com.ar/tarifas/",
+      "source": "https://aumesa.com.ar/tarifas/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "zarate",
+        "zarate brazo largo",
+        "zarate (rn12)",
+        "colonia elia",
+        "yerua",
+        "piedritas"
+      ],
+      "notes": "",
+      "tariffStatus": "partial-verified"
+    },
+    {
+      "id": "delta",
+      "name": "Conexión Alto Delta",
+      "scope": "Santa Fe / Entre Ríos · Rosario–Victoria",
+      "page": "https://conexionaltodelta.com/tarifas/",
+      "source": "https://conexionaltodelta.com/tarifas/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "victoria",
+        "rosario-victoria",
+        "puente rosario-victoria"
+      ],
+      "notes": "",
+      "tariffStatus": "partial-verified"
+    },
+    {
+      "id": "mediterraneo",
+      "name": "Corredor Mediterráneo",
+      "scope": "Buenos Aires / Córdoba · RN 7 y RN 35",
+      "page": "https://autopista.telepase.com.ar/",
+      "source": "https://autopista.telepase.com.ar/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "villa espil",
+        "junin",
+        "vicuna mackenna"
+      ],
+      "notes": "Operador confirmado por TelePASE desde el 10/09/2026; tarifa pendiente.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "portuario-sur",
+      "name": "Corredor Portuario Sur",
+      "scope": "Buenos Aires · RN 9 y RN 188",
+      "page": "https://autopista.telepase.com.ar/",
+      "source": "https://autopista.telepase.com.ar/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "zarate",
+        "junin"
+      ],
+      "notes": "Zárate y Junín requieren identificar concesionaria: existen estaciones homónimas.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "vial8",
+      "name": "Vial 8 · Tramo Puntano",
+      "scope": "Buenos Aires / Santa Fe / Córdoba / San Luis · RN 8",
+      "page": "https://autopista.telepase.com.ar/",
+      "source": "https://autopista.telepase.com.ar/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "larena",
+        "solis",
+        "venado tuerto",
+        "sampacho"
+      ],
+      "notes": "Operador confirmado por TelePASE desde el 10/09/2026; tarifa pendiente.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "cvsa",
+      "name": "Corredores Viales · tramos en transición",
+      "scope": "Red nacional · NOA, NEA y centro",
+      "page": "https://cvsa.com.ar/tramos-viales",
+      "source": "https://www.argentina.gob.ar/transporte/vialidad-nacional/corredoresviales",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "cabeza de buey",
+        "fernandez",
+        "la florida",
+        "molle yaco",
+        "colonia victoria",
+        "general belgrano",
+        "puente general belgrano",
+        "riachuelo",
+        "santa ana",
+        "makalle",
+        "ceres",
+        "devoto",
+        "franck",
+        "san vicente",
+        "carcarana",
+        "james craik",
+        "general lagos",
+        "la paz"
+      ],
+      "notes": "La web conserva tramos transferidos. Confirmar operador vigente antes de tarifar; no se reutilizan tarifas de concesiones anteriores.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "sierras",
+      "name": "Caminos de las Sierras",
+      "scope": "Córdoba · Red de Accesos a Córdoba",
+      "page": "https://caminosdelassierras.com.ar/tarifario/",
+      "source": "https://caminosdelassierras.com.ar/tarifario/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "toledo",
+        "bouwer",
+        "piedras moras",
+        "arroyo tegua",
+        "monte cristo",
+        "malagueno",
+        "la calera",
+        "estacion juarez celman",
+        "juarez celman",
+        "villa allende",
+        "pilar",
+        "bialet masse",
+        "molinari",
+        "cosquin"
+      ],
+      "notes": "Tarifa manual de seis ejes verificada; bonificaciones de TelePEAJE de automóviles no aplicadas a camiones.",
+      "tariffStatus": "partial-verified"
+    },
+    {
+      "id": "ap01",
+      "name": "Autopista AP-01 · Rosario–Santa Fe",
+      "scope": "Santa Fe · AP-01",
+      "page": "https://autopista.santafe.gov.ar/cuadro.php",
+      "source": "https://www.santafe.gob.ar/noticias/noticia/275692/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "sauce viejo",
+        "aldao",
+        "san lorenzo"
+      ],
+      "notes": "Cuadro del 01/08/2026 localizado; pendiente de confirmar categoría de seis ejes y vincular troncales, accesos y complemento.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "sf4",
+      "name": "Unidad Ejecutora Corredor Vial 4",
+      "scope": "Santa Fe · RP 18",
+      "page": "https://autogestion.telepase.com.ar/terminos-y-condiciones",
+      "source": "https://autogestion.telepase.com.ar/terminos-y-condiciones",
+      "reviewedOn": "2026-09-17",
+      "stations": [],
+      "notes": "Tarifario oficial de seis ejes pendiente.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "sf6",
+      "name": "Unidad Ejecutora Corredor Vial 6",
+      "scope": "Santa Fe · RP 14",
+      "page": "https://www.corredorvial6.com.ar/index.php?action=portal/viewContent&cntId_content=2725",
+      "source": "https://www.corredorvial6.com.ar/",
+      "reviewedOn": "2026-09-17",
+      "stations": [],
+      "notes": "Publicación del 26/08/2026 localizada: categoría 5 (5 y 6 ejes), tarifa general $12.800. Pendiente de vincular estaciones y medios de pago; prepago local excluido.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "sf9",
+      "name": "Unidad Ejecutora Corredor Vial 9",
+      "scope": "Santa Fe · RP 6 y RP 70",
+      "page": "https://autogestion.telepase.com.ar/terminos-y-condiciones",
+      "source": "https://autogestion.telepase.com.ar/terminos-y-condiciones",
+      "reviewedOn": "2026-09-17",
+      "stations": [],
+      "notes": "Tarifario oficial de seis ejes pendiente.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "sanluis",
+      "name": "Ente Control de Rutas · San Luis",
+      "scope": "San Luis · red provincial y Serranías Puntanas",
+      "page": "https://agenciasanluis.com/tag/ente-control-de-rutas/",
+      "source": "https://agenciasanluis.com/tag/ente-control-de-rutas/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "desaguadero",
+        "la cumbre",
+        "justo daract",
+        "los puquios",
+        "cruz de piedra",
+        "saladillo",
+        "la toma",
+        "buena esperanza",
+        "rio quinto",
+        "la punilla",
+        "el portezuelo",
+        "cuatro esquinas"
+      ],
+      "notes": "Tarifa de seis ejes pendiente; no se aplican descuentos de residentes automáticamente.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "tunel",
+      "name": "Ente Interprovincial · Túnel Subfluvial",
+      "scope": "Entre Ríos / Santa Fe · túnel subfluvial",
+      "page": "https://tunelsubfluvial.gov.ar/",
+      "source": "https://tunelsubfluvial.gov.ar/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "tunel subfluvial",
+        "raul uranga carlos sylvestre begnis"
+      ],
+      "notes": "La página /tarifas/ enlaza una imagen antigua. Requiere publicación vigente.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "caru",
+      "name": "CARU · Puentes internacionales",
+      "scope": "Entre Ríos / Uruguay · General Artigas y General San Martín",
+      "page": "https://caru.org.uy/nuevositio/peajes-y-tarjeta-vecinal/",
+      "source": "https://caru.org.uy/nuevositio/peajes-y-tarjeta-vecinal/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "puente general artigas",
+        "puente general san martin"
+      ],
+      "notes": "Revisar moneda, categoría y modalidad de pago; no se equipara RapiPeaje a TelePASE.",
+      "tariffStatus": "pending"
+    },
+    {
+      "id": "mercosul",
+      "name": "CS Rodovias Mercosul · Santo Tomé–São Borja",
+      "scope": "Corrientes / Brasil · puente internacional",
+      "page": "https://csrodoviasmercosul.com.br/historico-de-tarifas/",
+      "source": "https://csrodoviasmercosul.com.br/historico-de-tarifas/",
+      "reviewedOn": "2026-09-17",
+      "stations": [
+        "santo tome - sao borja",
+        "santo tome-sao borja"
+      ],
+      "notes": "Revisar operador, tarifa internacional y moneda antes de cotizar.",
+      "tariffStatus": "pending"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "centro",
+      "tramo": "Centro",
+      "adjudicatario": "AFEMA / Pablo Federico e Hijos / Guido Mogetta",
+      "source": "https://www.boletinoficial.gov.ar/detalleAviso/primera/346271/20260824",
+      "status": "Adjudicado. Toma de posesión, razón social operadora y cuadro tarifario vigente pendientes de confirmar."
+    },
+    {
+      "id": "centro-norte",
+      "tramo": "Centro Norte",
+      "adjudicatario": "José Cartellone Construcciones Civiles",
+      "source": "https://www.boletinoficial.gov.ar/detalleAviso/primera/346271/20260824",
+      "status": "Adjudicado. Toma de posesión, razón social operadora y cuadro tarifario vigente pendientes de confirmar."
+    },
+    {
+      "id": "mesopotamico",
+      "tramo": "Mesopotámico",
+      "adjudicatario": "IEB Construcciones / Trading MRG",
+      "source": "https://www.boletinoficial.gov.ar/detalleAviso/primera/346271/20260824",
+      "status": "Adjudicado. Toma de posesión, razón social operadora y cuadro tarifario vigente pendientes de confirmar."
+    },
+    {
+      "id": "noroeste",
+      "tramo": "Noroeste",
+      "adjudicatario": "Autovía Construcciones y Servicios / VAPEU / Guigivan",
+      "source": "https://www.boletinoficial.gov.ar/detalleAviso/primera/346271/20260824",
+      "status": "Adjudicado. Toma de posesión, razón social operadora y cuadro tarifario vigente pendientes de confirmar."
+    },
+    {
+      "id": "litoral",
+      "tramo": "Litoral",
+      "adjudicatario": "JCR / Néstor Julio Guerechet",
+      "source": "https://www.boletinoficial.gov.ar/detalleAviso/primera/346271/20260824",
+      "status": "Adjudicado. Toma de posesión, razón social operadora y cuadro tarifario vigente pendientes de confirmar."
+    },
+    {
+      "id": "noreste",
+      "tramo": "Noreste",
+      "adjudicatario": "Carlos E. Enríquez / Hormi",
+      "source": "https://www.boletinoficial.gov.ar/detalleAviso/primera/346271/20260824",
+      "status": "Adjudicado. Toma de posesión, razón social operadora y cuadro tarifario vigente pendientes de confirmar."
+    },
+    {
+      "id": "chaco-santafe",
+      "tramo": "Chaco–Santa Fe",
+      "adjudicatario": "José Eleuterio Pitón / Rovial / Obring",
+      "source": "https://www.boletinoficial.gov.ar/detalleAviso/primera/346271/20260824",
+      "status": "Adjudicado. Toma de posesión, razón social operadora y cuadro tarifario vigente pendientes de confirmar."
+    },
+    {
+      "id": "cuyo",
+      "tramo": "Cuyo",
+      "adjudicatario": "Laugero Construcciones / Green / Corporación del Sur",
+      "source": "https://www.boletinoficial.gov.ar/detalleAviso/primera/346271/20260824",
+      "status": "Adjudicado. Toma de posesión, razón social operadora y cuadro tarifario vigente pendientes de confirmar."
+    }
+  ],
+  "unresolved": [
+    {
+      "tramo": "Portuario Norte",
+      "source": "https://www.argentina.gob.ar/transporte/vialidad-nacional/red-federal-de-concesiones/etapa-ii-b-rfc",
+      "reason": "Confirmar razón social operadora y estaciones transferidas; no inferir que General Lagos sigue en CVSA."
+    }
+  ]
+}

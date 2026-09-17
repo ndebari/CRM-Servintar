@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { estimateCrossings, estimateJourneyCrossings } from '../netlify/lib/route-stations.mjs';
 import { handler } from '../netlify/functions/route-tolls.mjs';
+import referenceRoute from './fixtures/illia-zarate.json' with { type: 'json' };
+import stationDetails from '../netlify/lib/toll-station-details.json' with { type: 'json' };
+import catalog from '../netlify/lib/toll-stations.json' with { type: 'json' };
 const stations = [
  {id:1,lat:-34,lon:-58,name:'Peaje prueba',locality:'Localidad'},
  {id:2,lat:-34.0001,lon:-58,name:'Peaje prueba',locality:'Localidad'},
@@ -38,4 +41,45 @@ test('rejects invalid return boundaries', async () => {
   const result = await handler({ httpMethod: 'POST', body: JSON.stringify({path:[[-34.02,-58],[-33.98,-58],[-33.98,-58],[-34.02,-58]], returnStartIndex}) });
   assert.equal(result.statusCode, 400);
  }
+});
+
+test('reference route to Terminal Zárate has named plazas once per direction, not parallel ramps', async () => {
+ const result = await handler({httpMethod:'POST',body:JSON.stringify(referenceRoute)});
+ const rows = JSON.parse(result.body).tolls;
+ assert.deepEqual(rows.map(t => [t.journey,t.name,t.operator]), [
+  ['outbound','Retiro II','ausa'], ['outbound','Campana','ausol'],
+  ['return','Campana','ausol'], ['return','Illia','ausa']
+ ]);
+ assert.ok(rows.every(t => t.road && t.province));
+ assert.equal(new Set(rows.map(t=>t.id)).size,4);
+});
+
+test('access lane must be followed: passing 15m away or across it is not a toll crossing', () => {
+ const access = {id:101,name:'Peaje lateral',lat:-34,lon:-58,
+   accessPath:[[-34,-58],[-33.999,-58]],accessToleranceMeters:8};
+ const parallel = [[-34.001,-58.00016],[-33.998,-58.00016]];
+ assert.equal(estimateCrossings(parallel,[access]).length,0);
+ assert.equal(estimateCrossings([[-34,-58.001],[-34,-57.999]],[access]).length,0);
+ assert.equal(estimateCrossings([[-34.001,-58],[-33.998,-58]],[access]).length,1);
+ assert.equal(estimateCrossings([[-33.998,-58],[-34.001,-58]],[access]).length,0);
+ // A later visit to the access cannot make the earlier mainline passage valid.
+ const later = [...parallel,[-33.998,-57.99],[-34.001,-57.99],[-34.001,-58],[-33.998,-58]];
+ assert.equal(estimateCrossings(later,[access]).length,1);
+});
+
+test('real Salguero, Sarmiento and Campana access geometry remains detectable when traversed', () => {
+ for (const id of [288973972,5265026326,4598707920]) {
+   const detail=stationDetails.stations.find(s=>s.id===id);
+   const station={...catalog.stations.find(s=>s.id===id),...detail};
+   const rows=estimateCrossings(detail.accessPath,[station]);
+   assert.equal(rows.length,1,String(id));
+   assert.equal(rows[0].name,detail.name);
+ }
+});
+
+test('different named plazas never collapse and an immediate opposite crossing is retained', () => {
+ const points=[{id:1,plazaId:'a',name:'A',lat:-34,lon:-58},{id:2,plazaId:'b',name:'B',lat:-33.999,lon:-58}];
+ assert.equal(estimateCrossings([[-34.001,-58],[-33.998,-58]],points).length,2);
+ assert.equal(estimateCrossings([[-34.001,-58],[-33.999,-58],[-34.001,-58]],[points[0]]).length,2);
+ assert.equal(estimateCrossings([[-34.001,-58],[-33.998,-58]],[{...points[0],name:'Peaje (próximamente)'}]).length,0);
 });
