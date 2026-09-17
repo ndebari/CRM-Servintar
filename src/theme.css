@@ -123,6 +123,8 @@ a,.client-name-button,.truck-profile summary { color: var(--accent-ink); }
 }
 
 .workspace:has(.topbar) { padding-top: 24px; }
+/* Keep every module header above its scrolling content, including the quote wizard. */
+.workspace .topbar { position: sticky; top: 0; z-index: 20; align-self: start; }
 .topbar-actions { margin-left: auto; justify-content: flex-end; flex-wrap: wrap; }
 .topbar-actions .header-session { margin-left: 0; }
 .topbar-actions > .primary-button { background: var(--sun); color: var(--sun-ink); min-height: 38px; font-size: .78rem; }
