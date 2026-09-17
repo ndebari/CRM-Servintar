@@ -137,7 +137,13 @@ export type CostTotals = {
   perKm: number;
 };
 
-export type AdditionalDefinition = { id: string; name: string; description: string; kind: 'fixed' | 'percent' };
+export type AdditionalDefinition = { id: string; name: string; description: string; kind: 'fixed' | 'percent'; amount?: number };
+
+export function createAdditionalSelection(definition: AdditionalDefinition, previousAmount?: number): QuoteAdditionalSelection {
+  return { id: 'catalog:' + definition.id, catalogId: definition.id, name: definition.name,
+    description: definition.description, kind: definition.kind, amount: definition.amount ?? 0,
+    discountPercent: 0, previousAmount, confirmedDifferentAmount: true };
+}
 
 export type QuoteAdditionalSelection = {
   catalogId?: string;
@@ -669,45 +675,24 @@ export function CotizadorHome({
     }] });
   };
 
-  const addAdditional = (id: string) => {
-    const definition = additionalCatalog.find(item => item.id === id);
-    if (!definition || draft.additionals.some((item) => item.catalogId === id || item.name === definition.name)) {
-      return;
-    }
-
-    const { name, description, kind } = definition;
-    const previousAmount = kind === 'fixed' ? findPreviousAdditionalAmount(previousQuotes, draft.clientId, name) : undefined;
-    updateDraft('additionals', [
-      ...draft.additionals,
-      {
-        id: `adicional-${Date.now()}`,
-        catalogId: definition.id, description, kind,
-        name,
-        amount: previousAmount ?? 0,
-        discountPercent: 0,
-        previousAmount,
-        confirmedDifferentAmount: previousAmount === undefined
-      }
-    ]);
+  const [additionalEdits, setAdditionalEdits] = useState<Record<string, QuoteAdditionalSelection>>({});
+  const additionalRows = additionalCatalog.map(definition => {
+    const selected = draft.additionals.find(item => item.catalogId === definition.id || (!item.catalogId && item.name === definition.name));
+    return { selected: Boolean(selected), item: selected ?? additionalEdits[definition.id] ?? createAdditionalSelection(definition,
+      definition.kind === 'fixed' ? findPreviousAdditionalAmount(previousQuotes, draft.clientId, definition.name) : undefined) };
+  });
+  for (const item of draft.additionals) {
+    if (!additionalRows.some(row => row.item.id === item.id)) additionalRows.push({selected: true, item});
+  }
+  const toggleAdditional = (item: QuoteAdditionalSelection, checked: boolean) => {
+    setAdditionalEdits(values => ({...values, [item.catalogId ?? item.id]: item}));
+    updateDraft('additionals', checked ? [...draft.additionals, item] : draft.additionals.filter(other => other.id !== item.id));
   };
-
-  const updateAdditional = (id: string, field: 'amount' | 'discountPercent' | 'confirmedDifferentAmount', value: number | boolean) => {
-    updateDraft(
-      'additionals',
-      draft.additionals.map((item) => {
-        if (item.id !== id) {
-          return item;
-        }
-
-        const nextItem = { ...item, [field]: value };
-
-        if (field === 'amount' && item.previousAmount !== undefined && Number(value) !== item.previousAmount) {
-          nextItem.confirmedDifferentAmount = false;
-        }
-
-        return nextItem;
-      })
-    );
+  const updateAdditional = (item: QuoteAdditionalSelection, field: 'amount' | 'discountPercent' | 'confirmedDifferentAmount', value: number | boolean) => {
+    const nextItem = { ...item, [field]: value };
+    if (field === 'amount' && item.previousAmount !== undefined && Number(value) !== item.previousAmount) nextItem.confirmedDifferentAmount = false;
+    setAdditionalEdits(values => ({...values, [item.catalogId ?? item.id]: nextItem}));
+    if (draft.additionals.some(other => other.id === item.id)) updateDraft('additionals', draft.additionals.map(other => other.id === item.id ? nextItem : other));
   };
 
   const canPrepare =
@@ -968,31 +953,19 @@ export function CotizadorHome({
             <Plus size={20} />
           </div>
 
-          <div className="period-controls add-control">
-            <label>
-              Agregar adicional
-              <select defaultValue="" onChange={(event) => { addAdditional(event.target.value); event.target.value = ""; }}>
-                <option value="">Seleccionar</option>
-                {additionalCatalog.map((item) => (
-                  <option key={item.id} value={item.id} disabled={draft.additionals.some(selected => selected.catalogId === item.id || selected.name === item.name)}>{item.name} ({item.kind === "percent" ? "%" : "$"})</option>
-                ))}
-              </select>
-            </label>
-          </div>
-
           <div className="additional-list">
-            {draft.additionals.length === 0 ? (
-              <p className="muted-copy">Todavia no hay adicionales cargados.</p>
+            {additionalRows.length === 0 ? (
+              <p className="muted-copy">Creá los adicionales en el ABM de Adicionales.</p>
             ) : (
-              draft.additionals.map((item) => {
+              additionalRows.map(({item, selected}) => {
                 const hasDifferentPrevious = item.previousAmount !== undefined && item.previousAmount !== item.amount && !item.confirmedDifferentAmount;
 
                 return (
-                  <div className={`additional-row ${hasDifferentPrevious ? 'needs-confirmation' : ''}`} key={item.id}>
-                    <div><strong>{item.name}</strong>{item.description && <p>{item.description}</p>}<small>Total adicional: {currency.format(calculateAdditionalAmount(item, baseAmount))}</small></div>
+                  <div className={`additional-row quote-additional-row ${selected ? 'is-selected' : ''} ${selected && hasDifferentPrevious ? 'needs-confirmation' : ''}`} key={item.id}>
+                    <div><label className="check-inline"><input type="checkbox" aria-label={'Incluir ' + item.name} checked={selected} onChange={event => toggleAdditional(item,event.target.checked)} /><strong>{item.name}</strong></label>{item.description && <p>{item.description}</p>}<small>{selected ? 'Total adicional: ' + currency.format(calculateAdditionalAmount(item, baseAmount)) : 'No incluido'}</small></div>
                     <label>
                       {item.kind === "percent" ? "% del transporte" : "Importe ($)"}
-                      <input aria-label={"Valor de " + item.name} type="number" min="0" step="0.01" value={item.amount} onChange={(event) => updateAdditional(item.id, 'amount', Math.max(0, Number(event.target.value)))} />
+                      <input aria-label={"Valor de " + item.name} type="number" min="0" step="0.01" value={item.amount} onChange={(event) => updateAdditional(item, 'amount', Math.max(0, Number(event.target.value)))} />
                     </label>
                     <label>
                       Bonif. %
@@ -1001,17 +974,16 @@ export function CotizadorHome({
                         min="0"
                         type="number"
                         value={item.discountPercent}
-                        onChange={(event) => updateAdditional(item.id, 'discountPercent', Math.min(100, Math.max(0, Number(event.target.value))))}
+                        onChange={(event) => updateAdditional(item, 'discountPercent', Math.min(100, Math.max(0, Number(event.target.value))))}
                       />
                     </label>
-                    <button className="ghost-button" type="button" aria-label={"Eliminar adicional " + item.name} onClick={() => updateDraft("additionals", draft.additionals.filter(other => other.id !== item.id))}>Eliminar</button>
                     {item.previousAmount !== undefined && <span>Anterior: {currency.format(item.previousAmount)}</span>}
-                    {hasDifferentPrevious && (
+                    {selected && hasDifferentPrevious && (
                       <label className="check-inline warning-check">
                         <input
                           checked={item.confirmedDifferentAmount}
                           type="checkbox"
-                          onChange={(event) => updateAdditional(item.id, 'confirmedDifferentAmount', event.target.checked)}
+                          onChange={(event) => updateAdditional(item, 'confirmedDifferentAmount', event.target.checked)}
                         />
                         Confirmar diferencia
                       </label>

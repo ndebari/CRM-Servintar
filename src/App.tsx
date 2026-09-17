@@ -147,7 +147,7 @@ function App() {
   const [additionalCatalog, setAdditionalCatalog] = useState<AdditionalDefinition[]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('servintar.additionalCatalog.v1') ?? 'null');
-      if (Array.isArray(saved) && saved.every(item => item && typeof item.id === 'string' && typeof item.name === 'string' && typeof item.description === 'string' && ['fixed','percent'].includes(item.kind))) return saved;
+      if (Array.isArray(saved) && saved.every(item => item && typeof item.id === 'string' && typeof item.name === 'string' && typeof item.description === 'string' && ['fixed','percent'].includes(item.kind) && (item.amount === undefined || (typeof item.amount === 'number' && Number.isFinite(item.amount) && item.amount >= 0)))) return saved;
     } catch { /* Fall back to the initial catalog if storage is unavailable. */ }
     return initialAdditionals;
   });

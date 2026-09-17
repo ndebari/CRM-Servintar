@@ -11,7 +11,25 @@ const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url),
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
 const catalogUrl = new URL('../netlify/lib/toll-operators.json', import.meta.url).href;
 await writeFile(`${temp}/quote.mjs`, compiled.outputText.replace("'../netlify/lib/toll-operators.json'", JSON.stringify(catalogUrl) + " with { type: 'json' }"));
-const { calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+const { createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+
+test('selected additionals use the ABM base amount, preserve percentage meaning and allow quote-only edits', () => {
+ const definition={id:'wait',name:'Espera',description:'',kind:'fixed',amount:2500};
+ const selected=createAdditionalSelection(definition,1000);
+ assert.equal(selected.amount,2500);
+ const draft=draftWithTolls(0);
+ draft.additionals=[];
+ const without=buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount;
+ draft.additionals=[selected];
+ assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,without+2500/.8);
+ selected.amount=3000;
+ assert.equal(definition.amount,2500);
+ assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,without+3000/.8);
+ const percentage=createAdditionalSelection({...definition,kind:'percent',amount:10});
+ assert.equal(calculateAdditionalAmount(percentage,15000),1500);
+ draft.additionals=[];
+ assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,without);
+});
 
 function draftWithTolls(amount) {
   const draft = { ...createQuoteDraft('demo'), distanceKm: 100, requiredDays: 1, utilityPercent: 20, tolls: [{ id: 'a:0', name: 'Peaje prueba', locality: 'Localidad prueba', road: '', province: '', amount, source: 'manual' }], tollListStatus: 'manual', additionals: [{ id: '1', name: 'Demora', amount: 1000, discountPercent: 10 }] };

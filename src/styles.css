@@ -653,6 +653,10 @@ h3 {
   background: #fff8f7;
 }
 
+.quote-additional-row .check-inline { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.quote-additional-row input[type="checkbox"] { width: 18px; height: 18px; min-width: 18px; margin: 0; padding: 0; }
+.quote-additional-row.is-selected { border-color: var(--accent); }
+
 .warning-check {
   grid-column: 1 / -1;
   color: #b42318 !important;
