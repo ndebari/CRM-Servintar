@@ -1093,12 +1093,14 @@ export function ClientsModule({
   clients,
   clientTypes,
   onClientTypesChange,
-  onSaveClient
+  onSaveClient,
+  onDeleteClient
 }: {
   clients: Client[];
   clientTypes: string[];
   onClientTypesChange: (types: string[]) => void;
   onSaveClient: (client: Client) => void;
+  onDeleteClient: (id: string) => void;
 }) {
   const [editingClient, setEditingClient] = useState<Client>(createEmptyClient(clientTypes[0] ?? ''));
   const [newType, setNewType] = useState('');
@@ -1152,6 +1154,14 @@ export function ClientsModule({
               <Save size={18} />
               Guardar cliente
             </button>
+            {clients.some(client => client.id === editingClient.id) && <button className="ghost-button danger-button" type="button" onClick={() => {
+              const client = clients.find(item => item.id === editingClient.id);
+              if (!client || !window.confirm('¿Eliminar al cliente «' + (client.alias || client.businessName) + '»? Esta acción no se puede deshacer. Las cotizaciones existentes se conservarán.')) return;
+              onDeleteClient(client.id);
+              setShowDetails(false);
+              setEditingClient(createEmptyClient(clientTypes[0] ?? ''));
+              setClientError('');
+            }}><Trash2 size={18} />Eliminar cliente</button>}
           </div>
 
           <div className="form-grid">

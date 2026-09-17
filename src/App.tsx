@@ -308,6 +308,11 @@ function App() {
     setQuoteDraft((currentDraft) => ({ ...currentDraft, clientId: currentDraft.clientId || client.id }));
   };
 
+  const deleteClient = (id: string) => {
+    setClients(current => current.filter(client => client.id !== id));
+    setQuoteDraft(current => current.clientId === id ? { ...current, clientId: '', contactKey: undefined } : current);
+  };
+
   const prepareQuote = () => {
     const error = getQuoteStageErrors(quoteDraft, clients).find(Boolean);
     if (error) return error;
@@ -469,6 +474,7 @@ function App() {
             clients={clients}
             onClientTypesChange={setClientTypes}
             onSaveClient={saveClient}
+            onDeleteClient={deleteClient}
           />
         )}
         {view === 'cotizaciones' && (
