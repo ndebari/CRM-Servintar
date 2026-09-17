@@ -47,7 +47,8 @@ export async function searchOfficialTariffs(tolls, payment, fetcher = fetch) {
   const read = url => { if (!pending.has(url)) pending.set(url, readOfficial(url, fetcher)); return pending.get(url); };
   return Promise.all(tolls.map(async toll => {
     const base = { id: toll.id, amount: null, source: 'pending', checkedAt: new Date().toISOString() };
-    const { source, reason, operator } = findPublication(toll, payment);
+    const stationPayment = toll.payment ?? payment;
+    const { source, reason, operator } = findPublication(toll, stationPayment);
     base.operator = operator;
     if (!source) return { ...base, lookupMessage: reason };
     try {
@@ -65,7 +66,7 @@ export async function searchOfficialTariffs(tolls, payment, fetcher = fetch) {
       if (!published) throw new Error('La concesionaria cambió su publicación.');
       const bytes = await read(source.document);
       if (createHash('sha256').update(bytes).digest('hex') !== source.sha256) throw new Error('El cuadro tarifario cambió y requiere revisión.');
-      return { ...base, amount: source.rates[payment][toll.period === 'peak' ? 'peak' : 'normal'], source: 'official', sourceUrl: source.document, sourcePage: source.page, category: source.category, lookupMessage: 'Publicación oficial verificada · 6 ejes · ARS' };
+      return { ...base, amount: source.rates[stationPayment][toll.period === 'peak' ? 'peak' : 'normal'], source: 'official', sourceUrl: source.document, sourcePage: source.page, category: source.category, lookupMessage: 'Publicación oficial verificada · 6 ejes · ARS' };
     } catch {
       return { ...base, sourcePage: source.page, lookupMessage: 'No se pudo verificar la publicación vigente. El importe queda pendiente de carga manual.' };
     }
