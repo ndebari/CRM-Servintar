@@ -805,7 +805,7 @@ export function CotizadorHome({
 
   return (
     <div className="quote-wizard">
-      <header className="topbar quote-topbar"><div><h1>Cotizador</h1><p className="page-description">Etapa {stage+1} de {quoteStages.length}</p></div><SessionControls /></header>
+      <header className="topbar quote-topbar"><div><h1>Cotizador</h1></div><SessionControls /></header>
       <nav className="quote-steps" aria-label="Etapas del cotizador">{quoteStages.map((label,index) => <button key={label} type="button" aria-current={stage===index ? 'step' : undefined} disabled={index>stage} onClick={() => changeStage(index)}><span>{index+1}</span>{label}</button>)}</nav>
       <div className="panel wizard-panel">
         <div className="panel-header"><h2 ref={stageHeading} tabIndex={-1}>{quoteStages[stage]}</h2><span>{stage+1} / 6</span></div>
