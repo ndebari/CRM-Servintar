@@ -1218,7 +1218,6 @@ export function ClientsModule({
               CUIT
               <input inputMode="numeric" maxLength={13} placeholder="XX-XXXXXXXX-X" aria-invalid={Boolean(cuitError)} aria-describedby="client-cuit-help" value={editingClient.cuit} onChange={(event) => { setEditingClient({ ...editingClient, cuit: event.target.value }); setClientError(''); setLookupRequest(current => current + 1); }} onBlur={() => { setCuitTouched(true); setEditingClient(current => ({ ...current, cuit: formatCuit(current.cuit) })); }} />
               <small id="client-cuit-help" role={cuitError ? 'alert' : undefined}>{cuitError || '11 dígitos. Al completarlos se busca la razón social en fuentes públicas (BCRA y CUIT Online).'}</small>
-              <button className="ghost-button" type="button" disabled={Boolean(validateCuit(editingClient.cuit))} onClick={() => setLookupRequest(current => current + 1)}>Buscar razón social</button>
               <small role="status">{lookupStatus}</small>
               {lookupSource && <small><a href={lookupSource} target="_blank" rel="noreferrer">Ver fuente: {lookupProvider}</a> · Consulta pública, no es una constancia de ARCA.</small>}
             </label>
