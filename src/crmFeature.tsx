@@ -250,7 +250,7 @@ export function createQuoteDraft(clientId: string): TransportQuoteDraft {
     isRoundTrip: true,
     distanceKm: 0,
     requiredDays: 1,
-    utilityPercent: 0,
+    utilityPercent: '',
     tolls: [],
     tollListStatus: "pending",
     tollRouteKey: "",
