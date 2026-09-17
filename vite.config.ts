@@ -1,3 +1,4 @@
+import { handler as cuitLookup } from './netlify/functions/cuit-lookup.mjs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { handler as routeTolls } from './netlify/functions/route-tolls.mjs';
@@ -7,7 +8,7 @@ export default defineConfig({
   plugins: [react(), {
     name: 'local-official-tolls',
     configureServer(server) {
-      for (const [path, handler] of [['/.netlify/functions/official-tolls', officialTolls], ['/.netlify/functions/route-tolls', routeTolls]] as const) server.middlewares.use(path, async (request, response) => {
+      for (const [path, handler] of [['/.netlify/functions/cuit-lookup', cuitLookup], ['/.netlify/functions/official-tolls', officialTolls], ['/.netlify/functions/route-tolls', routeTolls]] as const) server.middlewares.use(path, async (request, response) => {
         let body = '';
         for await (const chunk of request) {
           body += chunk;
