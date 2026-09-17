@@ -1010,14 +1010,6 @@ export function CotizadorHome({
             {draft.tollListStatus !== 'detected' && <label className="check-inline toll-confirm"><input type="checkbox" checked={draft.tollListStatus === 'manual'} onChange={event => updateDraft('tollListStatus', event.target.checked ? 'manual' : 'pending')} />{draft.tolls.length ? 'Confirmo que revisé todos los peajes estimados del recorrido' : 'Confirmo que este recorrido no tiene peajes'}</label>}
             <div className="toll-total" aria-live="polite"><span>{tollReady ? 'Total peajes' : 'Subtotal peajes cargados'}</span><strong>{currency.format(tollSummary.total)}</strong></div>
             {!tollReady && <p className="toll-source">{tollSummary.pending ? 'Falta completar ' + tollSummary.pending + ' peaje(s). La tarifa final se habilita cuando todos estén completos.' : 'Falta confirmar el listado del recorrido.'}</p>}
-            <details className="truck-profile" open={!draft.truck.height || !draft.truck.weight || !draft.truck.length}>
-              <summary>Dimensiones del conjunto · tractor 3 + araña 3</summary>
-              <div className="form-grid">
-                {([{ field: 'height', label: 'Altura total (m)', max: 6 }, { field: 'weight', label: 'Peso bruto cargado (t)', max: 100 }, { field: 'length', label: 'Largo total (m)', max: 30 }] as const).map(item => (
-                  <label key={item.field}>{item.label}<input type="number" min="0.1" max={item.max} step="0.01" placeholder="Confirmar" value={draft.truck[item.field] || ''} onChange={event => updateDraft('truck', { ...draft.truck, [item.field]: Number(event.target.value) })} /></label>
-                ))}
-              </div>
-            </details>
           </section>
         </section>
         <section hidden={stage!==4} aria-label="Etapa de adicionales">
