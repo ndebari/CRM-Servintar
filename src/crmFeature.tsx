@@ -296,7 +296,7 @@ export function isValidUtility(value: number | ''): value is number {
 }
 
 function calculateTariffFromCost(cost: number, utilityPercent: number | '') {
-  if (!isValidUtility(utilityPercent)) throw new Error('Completá la utilidad con un valor entre 0 y menos de 100. Podés ingresar 0.');
+  if (!isValidUtility(utilityPercent)) throw new Error('Completá la utilidad con un valor entre 0 y menos de 100.');
 
   return cost / ((100 - utilityPercent) / 100);
 }
@@ -719,7 +719,7 @@ export function CotizadorHome({
         <Metric label="Dias" value={`${draft.requiredDays}`} hint="800 km cada 24 horas" />
         <Metric label="Costo" value={currency.format(quoteCost)} hint={tollReady ? "Transporte + peajes + adicionales" : "Subtotal: peajes pendientes"} />
         <Metric label="Utilidad" value={utilityValid ? `${draft.utilityPercent}%` : "Pendiente"} hint="Sobre tarifa final" />
-        <Metric label="Tarifa" value={tollReady && quoteTariff !== null ? currency.format(quoteTariff) : "Pendiente"} hint={!utilityValid ? "Completar utilidad (0 es válido)" : tollReady ? "Incluye peajes y utilidad" : "Completar peajes"} />
+        <Metric label="Tarifa" value={tollReady && quoteTariff !== null ? currency.format(quoteTariff) : "Pendiente"} hint={!utilityValid ? "Completar utilidad" : tollReady ? "Incluye peajes y utilidad" : "Completar peajes"} />
       </section>
 
       <section className="content-grid quote-builder-grid">
@@ -834,7 +834,7 @@ export function CotizadorHome({
                 aria-describedby={!utilityValid ? 'utility-error' : undefined}
                 onChange={(event) => updateDraft('utilityPercent', event.target.value === '' ? '' : event.target.valueAsNumber)}
               />
-              {!utilityValid && <span id="utility-error" className="field-error" role="alert">Ingresá una utilidad entre 0 y menos de 100. Si no aplicás utilidad, escribí 0.</span>}
+              {!utilityValid && <span id="utility-error" className="field-error" role="alert">Ingresá una utilidad entre 0 y menos de 100.</span>}
             </label>
             <label>
               Estado
