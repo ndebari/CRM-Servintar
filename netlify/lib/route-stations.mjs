@@ -41,3 +41,12 @@ export function estimateCrossings(path, stations = catalog.stations) {
   });
 }
 export const catalogDate = catalog.date;
+
+export function estimateJourneyCrossings(path, returnStartIndex, stations = catalog.stations) {
+  const groups = returnStartIndex === undefined
+    ? [{ journey: 'outbound', path }]
+    : [{ journey: 'outbound', path: path.slice(0, returnStartIndex) }, { journey: 'return', path: path.slice(returnStartIndex) }];
+  return groups.flatMap(group => estimateCrossings(group.path, stations).map(toll => ({
+    ...toll, id: group.journey + ':' + toll.id, journey: group.journey
+  })));
+}
