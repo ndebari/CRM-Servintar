@@ -51,7 +51,7 @@ test('rounding applies after the existing margin formula and the saved quote sna
  assert.throws(()=>roundQuoteTariff(1234,7));
  const draft={...draftWithTolls(100),clientId:initialClients[0].id,contactKey:'commercialContact',roundingUnit:1000};
  const quote=buildPreparedQuote(draft,initialClients,{perDay:5000,perKm:100});
- assert.equal(quote.amount,Math.ceil(((15000+900+100)/.8)/1000)*1000);
+ assert.equal(quote.amount,Math.ceil(((15000+100)/.8)/1000)*1000);
  assert.equal(quote.contact.fullName,initialClients[0].commercialContact.fullName);
  assert.match(quote.text,/Fórmula:/);assert.match(quote.text,/Redondeo:/);
  draft.tolls[0].amount=900;
@@ -104,10 +104,10 @@ test('selected additionals use the ABM base amount, preserve percentage meaning 
  draft.additionals=[];
  const without=buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount;
  draft.additionals=[selected];
- assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,without+2500/.8);
+ assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,without);
  selected.amount=3000;
  assert.equal(definition.amount,2500);
- assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,without+3000/.8);
+ assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,without);
  const percentage=createAdditionalSelection({...definition,kind:'percent',amount:10});
  assert.equal(calculateAdditionalAmount(percentage,15000),1500);
  draft.additionals=[];
@@ -131,7 +131,7 @@ test('Base Lavaisse and its legacy label route to the actual address, including 
 });
 test('peajes are counted once before the margin and included in quote text', () => {
   const quote = buildPreparedQuote(draftWithTolls(12000), [], { perDay: 5000, perKm: 100 });
-  assert.equal(quote.amount, (5000 + 100 * 100 + 900 + 12000) / 0.8);
+  assert.equal(quote.amount, (5000 + 100 * 100 + 12000) / 0.8);
   assert.match(quote.text, /Total peajes:/);
 });
 test('unknown or outdated tolls cannot produce a quote', () => {
@@ -140,7 +140,7 @@ test('unknown or outdated tolls cannot produce a quote', () => {
   assert.throws(() => buildPreparedQuote(changed, [], { perDay: 5000, perKm: 100 }));
 });
 test('confirmed zero is valid and payment or dimensions do not change the Google route', () => {
-  assert.equal(buildPreparedQuote(draftWithTolls(0), [], { perDay: 5000, perKm: 100 }).amount, 19875);
+  assert.equal(buildPreparedQuote(draftWithTolls(0), [], { perDay: 5000, perKm: 100 }).amount, 18750);
   const changed = draftWithTolls(100); changed.truck = { ...changed.truck, tractorAxles: 2 };
   assert.equal(getTruckRouteKey(changed), changed.tollRouteKey);
   const payment = draftWithTolls(100); payment.tollPayment = 'tag';
@@ -246,16 +246,18 @@ test('confirmed tolls from the previous routing policy require recalculation', (
 });
 
 
-test('percentage additionals use transport base only, with discount before margin', () => {
+test('conditional additionals retain discounted amounts and conditions without affecting the tariff', () => {
  const draft=draftWithTolls(12000);
  draft.additionals=[{id:'pct',name:'Seguro',description:'Cobertura adicional',kind:'percent',amount:10,discountPercent:20,confirmedDifferentAmount:true},{id:'fixed',name:'Espera',kind:'fixed',amount:500,discountPercent:0,confirmedDifferentAmount:true}];
  assert.equal(calculateAdditionalAmount(draft.additionals[0],15000),1200);
  const quote=buildPreparedQuote(draft,[],{perDay:5000,perKm:100});
- assert.equal(quote.amount,(15000+12000+1200+500)/0.8);
+ assert.equal(quote.amount,(15000+12000)/0.8);
  assert.match(quote.text,/10% del transporte base/);
  assert.match(quote.text,/Cobertura adicional/);
+ assert.match(quote.text,/no incluidos en el total; se cobran solo si se producen/);
+ assert.deepEqual(quote.draft.additionals,draft.additionals);
  draft.distanceKm=200;
- assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,(25000+12000+2000+500)/0.8);
+ assert.equal(buildPreparedQuote(draft,[],{perDay:5000,perKm:100}).amount,(25000+12000)/0.8);
 });
 
 test('legacy additionals remain fixed and invalid amounts cannot create quotes',()=>{

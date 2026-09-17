@@ -347,21 +347,17 @@ export function calculateAdditionalAmount(item: QuoteAdditionalSelection, transp
 export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[], totals: CostTotals): PreparedQuote {
   const client = clients.find((item) => item.id === draft.clientId);
   const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
-  const additionalsAmount = draft.additionals.reduce(
-    (total, item) => total + calculateAdditionalAmount(item, baseAmount),
-    0
-  );
   const tollSummary = summarizeTolls(draft);
   if (!tollSummary.ready) {
     throw new Error("Confirmá los peajes del recorrido actual antes de preparar la cotización.");
   }
-  const totalCost = baseAmount + additionalsAmount + tollSummary.total;
+  const totalCost = baseAmount + tollSummary.total;
   const unroundedAmount = calculateTariffFromCost(totalCost, draft.utilityPercent);
   const totalAmount = roundQuoteTariff(unroundedAmount, draft.roundingUnit);
   const contact = getClientContacts(client).find(item => item.key === draft.contactKey)?.contact;
   const additionalsText =
     draft.additionals.length === 0
-      ? 'No se incluyen adicionales.'
+      ? 'Sin adicionales previstos.'
       : draft.additionals
           .map((item) => {
             const netAmount = calculateAdditionalAmount(item, baseAmount);
@@ -399,7 +395,7 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       "Peajes · tractor 3 ejes + araña 3 ejes:",
       ...draft.tolls.map((toll, index) => "- " + (toll.journey === "return" ? "Vuelta · " : toll.journey === "outbound" || !draft.isRoundTrip ? "Ida · " : "") + "Paso " + (index + 1) + ": " + toll.name + " — " + toll.locality + (toll.travelSense ? " · " + toll.travelSense : "") + ": " + currency.format(toll.amount!) + (toll.source === "manual" ? " (manual)" : "")),
       "Total peajes: " + currency.format(tollSummary.total),
-      'Adicionales:',
+      'Adicionales a demanda (no incluidos en el total; se cobran solo si se producen):',
       additionalsText,
       '',
       `Costo total: ${currency.format(totalCost)}`,
@@ -605,13 +601,9 @@ export function CotizadorHome({
   const routeStops = getRouteStops(draft);
   const routeKey = getTruckRouteKey(draft);
   const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
-  const additionalsAmount = draft.additionals.reduce(
-    (total, item) => total + calculateAdditionalAmount(item, baseAmount),
-    0
-  );
   const tollSummary = summarizeTolls(draft);
   const tollReady = tollSummary.ready;
-  const quoteCost = baseAmount + additionalsAmount + tollSummary.total;
+  const quoteCost = baseAmount + tollSummary.total;
   const utilityValid = isValidUtility(draft.utilityPercent);
   const quoteTariff = utilityValid ? calculateTariffFromCost(quoteCost, draft.utilityPercent) : null;
   const [routeStatus, setRouteStatus] = useState('');
@@ -1077,7 +1069,6 @@ export function CotizadorHome({
           <div className="review-details"><div><h3>Costos y tarifa</h3><dl className="review-totals">
             <div><dt>Subtotal costo del viaje</dt><dd>{exactCurrency(baseAmount)}</dd></div>
             <div><dt>Peajes</dt><dd>{exactCurrency(tollSummary.total)}</dd></div>
-            <div><dt>Adicionales</dt><dd>{exactCurrency(additionalsAmount)}</dd></div>
             <div className="review-emphasis"><dt>Total costo</dt><dd>{exactCurrency(quoteCost)}</dd></div>
             <div><dt>Utilidad</dt><dd>{utilityValid ? draft.utilityPercent+'%' : 'Pendiente'}</dd></div>
             <div><dt>Tarifa sin redondeo</dt><dd>{quoteTariff === null ? 'Pendiente' : exactCurrency(quoteTariff)}</dd></div>
@@ -1086,7 +1077,7 @@ export function CotizadorHome({
           <p>Ajuste por redondeo: {roundedTariff === null || quoteTariff === null ? 'Pendiente' : exactCurrency(roundedTariff-quoteTariff)}</p>
           <div className="toll-total"><span>Tarifa final</span><strong>{roundedTariff === null ? 'Pendiente' : exactCurrency(roundedTariff)}</strong></div></div>
           <div><h3>Peajes incluidos</h3>{getTollGroups(draft).map(group => <div key={group.id}><h4>{group.title}</h4>{!group.rows.length ? <p>Sin peajes.</p> : <ul>{group.rows.map(({toll}) => <li key={toll.id}>{toll.name} · {toll.locality} · {toll.travelSense || 'Sentido sin informar'} — {toll.amount === null ? 'Pendiente' : exactCurrency(toll.amount)}</li>)}</ul>}</div>)}
-          <h3>Adicionales incluidos</h3>{!draft.additionals.length ? <p>Sin adicionales.</p> : <ul className="review-additionals">{draft.additionals.map(item => <li key={item.id}><strong>{item.name} — {exactCurrency(calculateAdditionalAmount(item,baseAmount))}</strong><p>{item.kind==='percent' ? item.amount+'% del transporte' : exactCurrency(item.amount)} · Bonificación {item.discountPercent}%</p>{item.description && <p>{item.description}</p>}</li>)}</ul>}</div></div>
+          <h3>Adicionales a demanda</h3><p>No incluidos en el total. Se cobran solo si se producen.</p>{!draft.additionals.length ? <p>Sin adicionales.</p> : <ul className="review-additionals">{draft.additionals.map(item => <li key={item.id}><strong>{item.name} — {exactCurrency(calculateAdditionalAmount(item,baseAmount))}</strong><p>{item.kind==='percent' ? item.amount+'% del transporte' : exactCurrency(item.amount)} · Bonificación {item.discountPercent}%</p>{item.description && <p>{item.description}</p>}</li>)}</ul>}</div></div>
         </section>
       </div>
       <footer className="wizard-footer">
