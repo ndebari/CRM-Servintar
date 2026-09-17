@@ -18,6 +18,16 @@ function draftWithTolls(amount) {
   draft.tollRouteKey = getTruckRouteKey(draft);
   return draft;
 }
+
+test('Base Lavaisse and its legacy label route to the actual address, including the return', () => {
+ const draft = {...createQuoteDraft('demo'),emptyPickup:'TRP',consolidationDestination:'Cliente',deliveryPort:'Terminal Zárate',isRoundTrip:true};
+ assert.equal(draft.base,'Base Lavaisse');
+ const stops=JSON.parse(getTruckRouteKey(draft));
+ assert.equal(stops[0],'Benjamín Lavaisse 1401, Ciudad Autónoma de Buenos Aires, Argentina');
+ assert.equal(stops.at(-1),stops[0]);
+ assert.equal(getTruckRouteKey({...draft,base:'Base Buenos Aires'}),getTruckRouteKey(draft));
+ assert.deepEqual(JSON.parse(getTruckRouteKey({...draft,transportKind:'otro',origin:'Base Lavaisse',destination:'Terminal Zárate',isRoundTrip:false})),[stops[0],'Terminal Zárate']);
+});
 test('peajes are counted once before the margin and included in quote text', () => {
   const quote = buildPreparedQuote(draftWithTolls(12000), [], { perDay: 5000, perKm: 100 });
   assert.equal(quote.amount, (5000 + 100 * 100 + 900 + 12000) / 0.8);

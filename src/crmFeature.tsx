@@ -103,6 +103,11 @@ function loadGooglePlaces() {
   return googlePlacesLoader;
 }
 
+export const LAVAISSE_BASE = 'Base Lavaisse';
+export const LAVAISSE_ADDRESS = 'Benjamín Lavaisse 1401, Ciudad Autónoma de Buenos Aires, Argentina';
+const baseName = (base: string) => base === 'Base Buenos Aires' ? LAVAISSE_BASE : base;
+const routeAddress = (address: string) => baseName(address.trim()) === LAVAISSE_BASE ? LAVAISSE_ADDRESS : address.trim();
+
 export type ContactInfo = {
   fullName: string;
   role: string;
@@ -228,7 +233,7 @@ export function createQuoteDraft(clientId: string): TransportQuoteDraft {
     quoteDate: todayIso,
     serviceName: 'Transporte terrestre',
     transportKind: 'expo',
-    base: 'Base Buenos Aires',
+    base: LAVAISSE_BASE,
     origin: '',
     emptyPickup: '',
     consolidationDestination: '',
@@ -355,11 +360,11 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
 
 function getRouteDescription(draft: TransportQuoteDraft) {
   if (draft.transportKind === 'expo') {
-    return `${draft.base} / retiro vacio ${draft.emptyPickup || 'sin definir'} / consolidado ${draft.consolidationDestination || 'sin definir'} / puerto ${draft.deliveryPort || 'sin definir'}`;
+    return `${baseName(draft.base)} / retiro vacio ${draft.emptyPickup || 'sin definir'} / consolidado ${draft.consolidationDestination || 'sin definir'} / puerto ${draft.deliveryPort || 'sin definir'}`;
   }
 
   if (draft.transportKind === 'impo') {
-    return `${draft.base} / puerto retiro full ${draft.fullPickupPort || 'sin definir'} / desconsolidado ${draft.deconsolidationDestination || 'sin definir'} / devolucion vacio ${draft.emptyReturnYard || 'sin definir'}`;
+    return `${baseName(draft.base)} / puerto retiro full ${draft.fullPickupPort || 'sin definir'} / desconsolidado ${draft.deconsolidationDestination || 'sin definir'} / devolucion vacio ${draft.emptyReturnYard || 'sin definir'}`;
   }
 
   return `${draft.origin || 'origen sin definir'} a ${draft.destination || 'destino sin definir'}`;
@@ -385,7 +390,7 @@ function getRouteStops(draft: TransportQuoteDraft) {
       : draft.transportKind === 'impo'
         ? [draft.base, draft.fullPickupPort, draft.deconsolidationDestination, draft.emptyReturnYard]
         : [draft.origin, draft.destination];
-  const cleanStops = stops.map((stop) => stop.trim());
+  const cleanStops = stops.map(routeAddress);
 
   if (draft.isRoundTrip && cleanStops.length > 1) {
     return [...cleanStops, cleanStops[0]];
@@ -725,11 +730,12 @@ export function CotizadorHome({
             </label>
             <label>
               Base
-              <select value={draft.base} onChange={(event) => updateDraft('base', event.target.value)}>
-                <option>Base Buenos Aires</option>
+              <select value={baseName(draft.base)} onChange={(event) => updateDraft('base', event.target.value)}>
+                <option>{LAVAISSE_BASE}</option>
                 <option>Base Zarate</option>
                 <option>TECPLATA, La Plata, Buenos Aires, Argentina</option>
               </select>
+              {baseName(draft.base) === LAVAISSE_BASE && <small>{LAVAISSE_ADDRESS}</small>}
             </label>
             <label className="check-inline">
               <input checked={draft.isRoundTrip} type="checkbox" onChange={(event) => updateDraft('isRoundTrip', event.target.checked)} />
@@ -1280,6 +1286,12 @@ function ContactEditor({
 function AddressField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
+  const showBeginning = () => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.setSelectionRange(0, 0);
+    input.scrollLeft = 0;
+  };
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -1302,6 +1314,7 @@ function AddressField({ label, value, onChange }: { label: string; value: string
         listener = autocomplete.addListener('place_changed', () => {
           const place = autocomplete.getPlace();
           onChangeRef.current(place.formatted_address || place.name || inputRef.current?.value || '');
+          requestAnimationFrame(showBeginning);
         });
       })
       .catch(() => {
@@ -1322,7 +1335,9 @@ function AddressField({ label, value, onChange }: { label: string; value: string
         autoComplete="off"
         placeholder="Direccion, ciudad o puerto"
         value={value}
+        title={value}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={() => { showBeginning(); requestAnimationFrame(showBeginning); }}
       />
     </label>
   );
