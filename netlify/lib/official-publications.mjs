@@ -26,12 +26,18 @@ export function findPublication(toll, payment) {
   const stationMatches = publications.filter(p => p.stations.includes(normalizeStation(toll.name)));
   const operators = [...new Set(stationMatches.map(p => p.operator))];
   const operator = toll.operator || (operators.length === 1 ? operators[0] : undefined);
-  if (!['tag', 'cash'].includes(payment)) return { operator, reason: 'Seleccioná TelePASE o efectivo en Pago de peajes.' };
   const matches = stationMatches.filter(p => p.operator === operator);
   if (!matches.length) return { operator, reason: 'No hay una publicación verificada para esta concesionaria y estación. Cargá el importe manualmente.' };
   const source = matches.find(p => p.direction === 'both' || p.direction === toll.direction);
-  if (!source) return { operator, reason: 'Seleccioná el sentido de paso por esta estación.' };
-  if (source.rates[payment].normal !== source.rates[payment].peak && !['normal', 'peak'].includes(toll.period)) return { operator, reason: 'Seleccioná horario pico o no pico para esta pasada.' };
+  const missing = [];
+  if (!['tag', 'cash'].includes(payment)) missing.push('forma de pago (TelePASE o efectivo)');
+  if (!source) missing.push('sentido del paso');
+  const relevantSources = source ? [source] : matches;
+  const payments = ['tag', 'cash'].includes(payment) ? [payment] : ['tag', 'cash'];
+  if (!['normal', 'peak'].includes(toll.period) && relevantSources.some(p => payments.some(method => p.rates[method].normal !== p.rates[method].peak))) {
+    missing.push('horario (pico o no pico)');
+  }
+  if (missing.length) return { operator, reason: 'Para calcular el precio de ' + toll.name + ', seleccioná: ' + missing.join(', ') + '. El importe se completa automáticamente.' };
   return { source, operator };
 }
 
