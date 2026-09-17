@@ -1,3 +1,4 @@
+import { SessionControls } from './SessionControls';
 import { useState } from 'react';
 import { getClientContacts, type Client, type PreparedQuote } from './crmFeature';
 const money = new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'});
@@ -21,7 +22,7 @@ export function QuotesModule({ clients, quotes, priceList = false, onChange, onR
  const open=(q:PreparedQuote)=>{setSelectedId(q.id);setClientId(q.clientId);setContactKey('');setError('');};
  const change=async(action:'send'|'approve')=>{if(!selected)return;setBusy(true);setError('');try{await onChange(selected.id,action,contactKey);}catch(e){setError(e instanceof Error?e.message:'No se pudo guardar el estado.');}finally{setBusy(false);}};
  return <>
-  <header className="topbar"><div><p className="eyebrow">Módulo</p><h1>{priceList?'Lista de precios':'Cotizaciones'}</h1></div></header>
+  <header className="topbar"><div><p className="eyebrow">Módulo</p><h1>{priceList?'Lista de precios':'Cotizaciones'}</h1></div><SessionControls /></header>
   <section className="panel"><div className="form-grid">
    <label>Cliente<select value={clientId} onChange={e=>{setClientId(e.target.value);setSelectedId('');setError('');}}><option value="">Seleccionar cliente</option>{[...options].map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
    <label>Creada desde<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>

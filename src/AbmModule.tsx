@@ -1,3 +1,4 @@
+import { SessionControls } from './SessionControls';
 import { useState } from 'react';
 import { AdditionalsModule } from './AdditionalsModule';
 import type { AdditionalDefinition, Client } from './crmFeature';
@@ -23,7 +24,7 @@ export function AbmModule({ additionalCatalog, onAdditionalsChange, additionalSt
     setName(''); setEditing(null); setMessage('Tipo de cliente guardado.');
   };
   return <>
-    <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>ABM</h1><p className="page-description">Administración de los catálogos del CRM.</p></div></header>
+    <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>ABM</h1><p className="page-description">Administración de los catálogos del CRM.</p></div><SessionControls /></header>
     <nav className="abm-navigation" aria-label="Catálogos ABM">
       <button className={section === 'additionals' ? 'primary-button' : 'ghost-button'} aria-pressed={section === 'additionals'} onClick={() => setSection('additionals')}>Adicionales</button>
       <button className={section === 'types' ? 'primary-button' : 'ghost-button'} aria-pressed={section === 'types'} onClick={() => setSection('types')}>Tipos de cliente</button>

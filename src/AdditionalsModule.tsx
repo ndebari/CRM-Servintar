@@ -1,3 +1,4 @@
+import { SessionControls } from './SessionControls';
 import { useState } from 'react';
 import type { AdditionalDefinition } from './crmFeature';
 
@@ -23,7 +24,7 @@ export function AdditionalsModule({ catalog, onChange, status, embedded = false 
     }
   };
   return <>
-    {!embedded && <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>Adicionales</h1><p className="page-description">Administrá los conceptos disponibles en el cotizador.</p></div></header>}
+    {!embedded && <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>Adicionales</h1><p className="page-description">Administrá los conceptos disponibles en el cotizador.</p></div><SessionControls /></header>}
     <section className="panel">
       <h2>{existing ? 'Editar adicional' : 'Nuevo adicional'}</h2>
       <form onSubmit={save}>

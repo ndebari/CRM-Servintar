@@ -1285,4 +1285,15 @@ a { color: #125da8; text-underline-offset: 3px; }
 .auth-screen .panel { width: min(440px,100%); }
 .auth-screen label { display: grid; gap: 8px; margin-bottom: 18px; }
 .auth-screen input { min-height: 44px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; }
-.session-bar { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 4px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+.topbar { flex-wrap: wrap; }
+.header-session { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-left: auto; flex-wrap: wrap; min-width: 0; }
+.header-session-identity { font-size: .85rem; overflow-wrap: anywhere; }
+.header-session-identity small { display: block; font-size: .75rem; opacity: .85; }
+.header-session .ghost-button { white-space: nowrap; padding: 9px 12px; }
+.quote-topbar .header-session { color: #fff; }
+.quote-topbar .header-session .ghost-button { color: #fff; border-color: #ffffff70; background: #ffffff12; }
+.quote-topbar .header-session .ghost-button:hover { background: #ffffff28; }
+@media (max-width: 640px) {
+ .header-session { width: 100%; margin-left: 0; justify-content: flex-start; }
+ .header-session-identity { flex: 1 1 150px; }
+}
