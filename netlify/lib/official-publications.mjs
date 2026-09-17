@@ -26,12 +26,18 @@ export function findPublication(toll, payment) {
   const stationMatches = publications.filter(p => p.stations.includes(normalizeStation(toll.name)));
   const operators = [...new Set(stationMatches.map(p => p.operator))];
   const operator = toll.operator || (operators.length === 1 ? operators[0] : undefined);
-  if (!['tag', 'cash'].includes(payment)) return { operator, reason: 'Seleccioná TelePASE o efectivo en Pago de peajes.' };
   const matches = stationMatches.filter(p => p.operator === operator);
   if (!matches.length) return { operator, reason: 'No hay una publicación verificada para esta concesionaria y estación. Cargá el importe manualmente.' };
   const source = matches.find(p => p.direction === 'both' || p.direction === toll.direction);
-  if (!source) return { operator, reason: 'Seleccioná el sentido de paso por esta estación.' };
-  if (source.rates[payment].normal !== source.rates[payment].peak && !['normal', 'peak'].includes(toll.period)) return { operator, reason: 'Seleccioná horario pico o no pico para esta pasada.' };
+  const missing = [];
+  if (!['tag', 'cash'].includes(payment)) missing.push('forma de pago (TelePASE o efectivo)');
+  if (!source) missing.push('sentido del paso');
+  const relevantSources = source ? [source] : matches;
+  const payments = ['tag', 'cash'].includes(payment) ? [payment] : ['tag', 'cash'];
+  if (!['normal', 'peak'].includes(toll.period) && relevantSources.some(p => payments.some(method => p.rates[method].normal !== p.rates[method].peak))) {
+    missing.push('horario (pico o no pico)');
+  }
+  if (missing.length) return { operator, reason: 'Para calcular el precio de ' + toll.name + ', seleccioná: ' + missing.join(', ') + '. El importe se completa automáticamente.' };
   return { source, operator };
 }
 
@@ -41,7 +47,8 @@ export async function searchOfficialTariffs(tolls, payment, fetcher = fetch) {
   const read = url => { if (!pending.has(url)) pending.set(url, readOfficial(url, fetcher)); return pending.get(url); };
   return Promise.all(tolls.map(async toll => {
     const base = { id: toll.id, amount: null, source: 'pending', checkedAt: new Date().toISOString() };
-    const { source, reason, operator } = findPublication(toll, payment);
+    const stationPayment = toll.payment ?? payment;
+    const { source, reason, operator } = findPublication(toll, stationPayment);
     base.operator = operator;
     if (!source) return { ...base, lookupMessage: reason };
     try {
@@ -59,7 +66,7 @@ export async function searchOfficialTariffs(tolls, payment, fetcher = fetch) {
       if (!published) throw new Error('La concesionaria cambió su publicación.');
       const bytes = await read(source.document);
       if (createHash('sha256').update(bytes).digest('hex') !== source.sha256) throw new Error('El cuadro tarifario cambió y requiere revisión.');
-      return { ...base, amount: source.rates[payment][toll.period === 'peak' ? 'peak' : 'normal'], source: 'official', sourceUrl: source.document, sourcePage: source.page, category: source.category, lookupMessage: 'Publicación oficial verificada · 6 ejes · ARS' };
+      return { ...base, amount: source.rates[stationPayment][toll.period === 'peak' ? 'peak' : 'normal'], source: 'official', sourceUrl: source.document, sourcePage: source.page, category: source.category, lookupMessage: 'Publicación oficial verificada · 6 ejes · ARS' };
     } catch {
       return { ...base, sourcePage: source.page, lookupMessage: 'No se pudo verificar la publicación vigente. El importe queda pendiente de carga manual.' };
     }
