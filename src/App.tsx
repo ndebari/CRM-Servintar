@@ -1,4 +1,4 @@
-import { AdditionalsModule } from './AdditionalsModule';
+import { AbmModule } from './AbmModule';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
@@ -132,7 +132,7 @@ const currency = new Intl.NumberFormat('es-AR', {
 
 function App() {
   const today = new Date();
-  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos' | 'adicionales'>('cotizador');
+  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos' | 'abm'>('cotizador');
   const [month] = useState(months[today.getMonth()]);
   const [year] = useState(String(today.getFullYear()));
   const [lookupMonth, setLookupMonth] = useState(months[today.getMonth()]);
@@ -142,7 +142,16 @@ function App() {
   const [isCostEditing, setIsCostEditing] = useState(true);
   const [saveStatus, setSaveStatus] = useState('Sin guardar en esta sesion');
   const [clients, setClients] = useState<Client[]>(initialClients);
-  const [clientTypes, setClientTypes] = useState(initialClientTypes);
+  const [clientTypes, setClientTypes] = useState<string[]>(() => {
+    try { const saved = JSON.parse(localStorage.getItem('servintar.clientTypes.v1') ?? 'null'); if (Array.isArray(saved) && saved.every(item => typeof item === 'string' && item.trim())) return saved; } catch { /* Use initial types when storage is unavailable. */ }
+    return initialClientTypes;
+  });
+  const saveClientTypes = (types: string[], rename?: { from: string; to: string }) => {
+    try { localStorage.setItem('servintar.clientTypes.v1', JSON.stringify(types)); } catch { return false; }
+    setClientTypes(types);
+    if (rename) setClients(current => current.map(client => client.type === rename.from ? { ...client, type: rename.to } : client));
+    return true;
+  };
   const [quoteStatuses, setQuoteStatuses] = useState<QuoteStatus[]>(initialQuoteStatuses);
   const [requiredActions, setRequiredActions] = useState(initialRequiredActions);
   const [additionalCatalog, setAdditionalCatalog] = useState<AdditionalDefinition[]>(() => {
@@ -445,7 +454,7 @@ function App() {
             <FileSpreadsheet size={18} />
             Estructura de costos
           </button>
-          <button className={`nav-item ${view === 'adicionales' ? 'active' : ''}`} onClick={() => setView('adicionales')} aria-current={view === 'adicionales' ? 'page' : undefined} type="button"><Plus size={18} />Adicionales</button>
+          <button className={`nav-item ${view === 'abm' ? 'active' : ''}`} onClick={() => setView('abm')} aria-current={view === 'abm' ? 'page' : undefined} type="button"><Plus size={18} />ABM</button>
         </nav>
         </div>
         <div className="sidebar-footer">
@@ -467,12 +476,11 @@ function App() {
             totals={totals}
           />
         )}
-        {view === 'adicionales' && <AdditionalsModule catalog={additionalCatalog} onChange={saveAdditionalCatalog} status={additionalStatus} />}
+        {view === 'abm' && <AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} />}
         {view === 'clientes' && (
           <ClientsModule
             clientTypes={clientTypes}
             clients={clients}
-            onClientTypesChange={setClientTypes}
             onSaveClient={saveClient}
             onDeleteClient={deleteClient}
           />

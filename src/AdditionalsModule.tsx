@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { AdditionalDefinition } from './crmFeature';
 
-export function AdditionalsModule({ catalog, onChange, status }: {
+export function AdditionalsModule({ catalog, onChange, status, embedded = false }: {
+  embedded?: boolean;
   catalog: AdditionalDefinition[]; onChange: (items: AdditionalDefinition[]) => boolean; status: string;
 }) {
   const empty = (): AdditionalDefinition => ({ id: crypto.randomUUID(), name: '', description: '', kind: 'fixed' });
@@ -22,7 +23,7 @@ export function AdditionalsModule({ catalog, onChange, status }: {
     }
   };
   return <>
-    <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>Adicionales</h1><p className="page-description">Administrá los conceptos disponibles en el cotizador.</p></div></header>
+    {!embedded && <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>Adicionales</h1><p className="page-description">Administrá los conceptos disponibles en el cotizador.</p></div></header>}
     <section className="panel">
       <h2>{existing ? 'Editar adicional' : 'Nuevo adicional'}</h2>
       <form onSubmit={save}>

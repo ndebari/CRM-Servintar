@@ -1021,7 +1021,7 @@ export function CotizadorHome({
         <section hidden={stage!==4} aria-label="Etapa de adicionales">
           <div className="additional-list">
             {additionalRows.length === 0 ? (
-              <p className="muted-copy">Creá los adicionales en el ABM de Adicionales.</p>
+              <p className="muted-copy">Creá los adicionales en ABM → Adicionales.</p>
             ) : (
               additionalRows.map(({item, selected}) => {
                 const hasDifferentPrevious = item.previousAmount !== undefined && item.previousAmount !== item.amount && !item.confirmedDifferentAmount;
@@ -1110,18 +1110,15 @@ export function formatCuit(value: string): string {
 export function ClientsModule({
   clients,
   clientTypes,
-  onClientTypesChange,
   onSaveClient,
   onDeleteClient
 }: {
   clients: Client[];
   clientTypes: string[];
-  onClientTypesChange: (types: string[]) => void;
   onSaveClient: (client: Client) => void;
   onDeleteClient: (id: string) => void;
 }) {
   const [editingClient, setEditingClient] = useState<Client>(createEmptyClient(clientTypes[0] ?? ''));
-  const [newType, setNewType] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const [clientError, setClientError] = useState('');
   const [cuitTouched, setCuitTouched] = useState(false);
@@ -1165,7 +1162,7 @@ export function ClientsModule({
       {showDetails && <>
       <button className="ghost-button" type="button" onClick={() => { setShowDetails(false); setClientError(''); }}>Volver al listado</button>
       {clientError && <p role="alert">{clientError}</p>}
-      <section className="content-grid">
+      <section className="client-detail-layout">
         <div className="panel">
           <div className="panel-header">
             <div>
@@ -1203,6 +1200,8 @@ export function ClientsModule({
             <label>
               Tipo
               <select value={editingClient.type} onChange={(event) => setEditingClient({ ...editingClient, type: event.target.value })}>
+                <option value="">Seleccionar tipo</option>
+                {editingClient.type && !clientTypes.includes(editingClient.type) && <option value={editingClient.type}>{editingClient.type}</option>}
                 {clientTypes.map((type) => (
                   <option key={type}>{type}</option>
                 ))}
@@ -1221,38 +1220,6 @@ export function ClientsModule({
           </div>
         </div>
 
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">ABM</p>
-              <h2>Tipos de clientes</h2>
-            </div>
-          </div>
-          <div className="period-controls add-control">
-            <input placeholder="Nuevo tipo" value={newType} onChange={(event) => setNewType(event.target.value)} />
-            <button
-              className="ghost-button"
-              onClick={() => {
-                if (newType.trim()) {
-                  onClientTypesChange([...clientTypes, newType.trim()]);
-                  setNewType('');
-                }
-              }}
-              type="button"
-            >
-              <Plus size={17} />
-              Agregar
-            </button>
-          </div>
-          <div className="tag-list">
-            {clientTypes.map((type) => (
-              <button className="tag-pill" key={type} onClick={() => onClientTypesChange(clientTypes.filter((item) => item !== type))} type="button">
-                {type}
-                <Trash2 size={14} />
-              </button>
-            ))}
-          </div>
-        </div>
       </section>
 
       </>}
