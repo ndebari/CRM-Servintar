@@ -129,6 +129,8 @@ a,.client-name-button,.truck-profile summary { color: var(--accent-ink); }
 .workspace .topbar { position: static; margin: 0; }
 .module-scroll { overflow: auto; min-height: 0; min-width: 0; display: grid; align-content: start; gap: 22px; overscroll-behavior: contain; scroll-padding: 16px; padding: 4px 4px 20px; }
 .module-scroll.quote-wizard { gap: 24px; }
+/* Panels must retain their content height instead of shrinking to the viewport. */
+.module-scroll { grid-auto-rows: max-content; }
 .topbar-actions { margin-left: auto; justify-content: flex-end; flex-wrap: wrap; }
 .topbar-actions .header-session { margin-left: 0; }
 .topbar-actions > .primary-button { background: var(--sun); color: var(--sun-ink); min-height: 38px; font-size: .78rem; }
