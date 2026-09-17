@@ -26,7 +26,7 @@ export function AbmModule({ additionalCatalog, onAdditionalsChange, additionalSt
     setName(''); setEditing(null); setMessage('Tipo de cliente guardado.');
   };
   return <>
-    <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>ABM</h1></div><SessionControls /></header>
+    <header className="topbar"><div><h1>ABM</h1></div><SessionControls /></header>
     {!admin?<p>La administración de usuarios y catálogos está disponible para el administrador.</p>:<><nav className="abm-navigation" aria-label="Catálogos ABM">
       <button className={section === 'additionals' ? 'primary-button' : 'ghost-button'} aria-pressed={section === 'additionals'} onClick={() => setSection('additionals')}>Adicionales</button>
       <button className={section === 'types' ? 'primary-button' : 'ghost-button'} aria-pressed={section === 'types'} onClick={() => setSection('types')}>Tipos de cliente</button>

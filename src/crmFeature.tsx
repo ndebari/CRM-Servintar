@@ -1191,7 +1191,7 @@ export function ClientsModule({
     <>
       <header className="topbar">
         <div>
-          <p className="eyebrow">Modulo</p>
+          
           <h1>{supplierMode?'Proveedores':'Clientes'}</h1>
         </div>
         <div className="topbar-actions">

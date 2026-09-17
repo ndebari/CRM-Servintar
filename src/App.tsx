@@ -480,7 +480,7 @@ function CostStructure({
     <>
       <header className="topbar">
         <div>
-          <p className="eyebrow">Cotizador</p>
+          
           <h1>Estructura de costos</h1>
         </div>
       <SessionControls /></header>
