@@ -644,12 +644,12 @@ export function CotizadorHome({
         }) });
         const verified = result.tolls.filter((item: RouteToll) => item.source === 'official' && item.amount !== null).length;
         const pendingReasons = [...new Set<string>(result.tolls
-          .filter((item: RouteToll) => item.amount === null && item.lookupMessage)
+          .filter((item: RouteToll) => item.amount === null && item.lookupMessage && !item.lookupMessage.startsWith('Para calcular el precio de '))
           .map((item: RouteToll) => item.lookupMessage as string))];
         setOfficialStatus([
           verified ? `${verified} tarifa(s) completada(s) automáticamente.` : '',
           ...pendingReasons
-        ].filter(Boolean).join(' ') || 'No se obtuvo ningún importe. Revisá los datos de cada estación.');
+        ].filter(Boolean).join(' '));
       } catch (error) {
         if (active) setOfficialStatus(error instanceof Error ? error.message : 'No se pudo consultar las publicaciones.');
       }
@@ -885,7 +885,7 @@ export function CotizadorHome({
               {operatorCatalog.transitions.map(item => <p className="toll-source" key={item.id}><a href={item.source} target="_blank" rel="noreferrer">{item.tramo}</a> · {item.adjudicatario}. {item.status}</p>)}
               {operatorCatalog.unresolved.map(item => <p className="toll-source" key={item.tramo}><a href={item.source} target="_blank" rel="noreferrer">{item.tramo}</a> · {item.reason}</p>)}
             </details>
-            <p className="toll-source tariff-lookup-status" role="status">{officialStatus}</p>
+            {officialStatus && <p className="toll-source tariff-lookup-status" role="status">{officialStatus}</p>}
             {getTollGroups(draft).map(group => (
               <section className="toll-journey" key={group.id} aria-label={group.title}>
                 <div className="toll-journey-heading">
@@ -898,7 +898,6 @@ export function CotizadorHome({
                 <div className="toll-card" key={toll.id}>
                   <div className="toll-card-heading"><strong>{group.id === 'return' ? 'Vuelta' : group.id === 'outbound' ? 'Ida' : 'Tramo sin identificar'} · Paso {groupIndex + 1}</strong><span>{toll.source === 'official' ? 'Publicación oficial · 6 ejes' : toll.source === 'automatic' ? 'Tarifa estimada · 6 ejes' : toll.amount === null ? 'Importe pendiente' : 'Importe manual'}</span></div>
                   <p className="toll-travel-sense"><strong>{toll.travelSense || 'Sentido de circulación pendiente de identificar'}</strong></p>
-                  {toll.legOrigin && toll.legDestination && <p className="muted-copy">Tramo: {toll.legOrigin} → {toll.legDestination}</p>}
                   <div className="form-grid">
                     <label>Nombre del peaje<input aria-label={'Nombre del peaje ' + (index + 1)} value={toll.name} placeholder="Completar nombre" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, name: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))} /></label>
                     <label>Localidad<input aria-label={'Localidad del peaje ' + (index + 1)} value={toll.locality} placeholder="Localidad no informada" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, locality: event.target.value } : item))} /></label>
@@ -919,7 +918,7 @@ export function CotizadorHome({
                     </select></label>}
                   </div>
                   {toll.stationSourceUrl && <p className="toll-source"><a href={toll.stationSourceUrl} target="_blank" rel="noreferrer">Ver estación en el mapa</a> · Localidad aproximada: revisar</p>}
-                  <p className="toll-source">{toll.lookupMessage}</p>
+                  {toll.lookupMessage && !toll.lookupMessage.startsWith('Para calcular el precio de ') && <p className="toll-source">{toll.lookupMessage}</p>}
                   {!toll.sourceUrl && toll.sourcePage && <p className="toll-source"><a href={toll.sourcePage} target="_blank" rel="noreferrer">Consultar fuente de la concesionaria</a> · Importe pendiente de verificación</p>}
                   {toll.sourceUrl && <p className="toll-source"><a href={toll.sourceUrl} target="_blank" rel="noreferrer">Ver publicación oficial</a> · Categoría {toll.category} · Consultada {toll.checkedAt ? new Date(toll.checkedAt).toLocaleString('es-AR') : ''}{toll.source === 'manual' ? ' · Importe corregido manualmente' : ''}</p>}
                   <div className="toll-card-heading"><small>{[toll.road, toll.province].filter(Boolean).join(' · ')}</small>
