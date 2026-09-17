@@ -1,10 +1,10 @@
-import { SessionControls } from './SessionControls';
+import { SessionContext, SessionControls } from './SessionControls';
 import { ImportLocalData } from './ImportLocalData';
 import { quoteNumber } from './quoteLifecycle';
 import { QuotesModule } from './QuotesModule';
 import { readDatabase, storeQuote, changeQuote, storeClient, removeClient, saveRemoteTypes, saveRemoteAdditionals, crmRpc } from './quoteDatabase';
 import { AbmModule } from './AbmModule';
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useContext, useEffect, useMemo, useState, useRef } from 'react';
 import {
   Archive,
   BadgeDollarSign,
@@ -129,6 +129,7 @@ const currency = new Intl.NumberFormat('es-AR', {
 });
 
 function App() {
+  const sessionAccess=useContext(SessionContext);
   const today = new Date();
   const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos' | 'abm' | 'precios'>('cotizador');
   const [month] = useState(months[today.getMonth()]);
@@ -404,7 +405,7 @@ function App() {
             totals={totals}
           />
         )}
-        {view === 'abm' && <><ImportLocalData onImported={refreshDatabase} /><AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} /></>}
+        {view === 'abm' && <>{sessionAccess?.admin&&<ImportLocalData onImported={refreshDatabase} />}<AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} /></>}
         {view === 'clientes' && (
           <ClientsModule
             clientTypes={clientTypes}

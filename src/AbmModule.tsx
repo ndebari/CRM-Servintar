@@ -1,5 +1,6 @@
-import { SessionControls } from './SessionControls';
-import { useState } from 'react';
+import { AdminUsers } from './AdminUsers';
+import { SessionContext, SessionControls } from './SessionControls';
+import { useContext, useState } from 'react';
 import { AdditionalsModule } from './AdditionalsModule';
 import type { AdditionalDefinition, Client } from './crmFeature';
 
@@ -11,7 +12,8 @@ export function AbmModule({ additionalCatalog, onAdditionalsChange, additionalSt
   clients: Client[];
   onClientTypesChange: (types: string[], rename?: { from: string; to: string }) => Promise<boolean>;
 }) {
-  const [section, setSection] = useState<'additionals' | 'types'>('additionals');
+  const [section, setSection] = useState<'additionals' | 'types' | 'users'>('additionals');
+  const admin=useContext(SessionContext)?.admin===true;
   const [name, setName] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -25,11 +27,12 @@ export function AbmModule({ additionalCatalog, onAdditionalsChange, additionalSt
   };
   return <>
     <header className="topbar"><div><p className="eyebrow">Configuración</p><h1>ABM</h1><p className="page-description">Administración de los catálogos del CRM.</p></div><SessionControls /></header>
-    <nav className="abm-navigation" aria-label="Catálogos ABM">
+    {!admin?<p>La administración de usuarios y catálogos está disponible para el administrador.</p>:<><nav className="abm-navigation" aria-label="Catálogos ABM">
       <button className={section === 'additionals' ? 'primary-button' : 'ghost-button'} aria-pressed={section === 'additionals'} onClick={() => setSection('additionals')}>Adicionales</button>
       <button className={section === 'types' ? 'primary-button' : 'ghost-button'} aria-pressed={section === 'types'} onClick={() => setSection('types')}>Tipos de cliente</button>
+      <button className={section === 'users' ? 'primary-button' : 'ghost-button'} aria-pressed={section === 'users'} onClick={()=>setSection('users')}>Usuarios</button>
     </nav>
-    {section === 'additionals' ? <AdditionalsModule embedded catalog={additionalCatalog} onChange={onAdditionalsChange} status={additionalStatus} /> : <>
+    {section === 'users' ? <AdminUsers clients={clients}/> : section === 'additionals' ? <AdditionalsModule embedded catalog={additionalCatalog} onChange={onAdditionalsChange} status={additionalStatus} /> : <>
       <section className="panel"><h2>{editing === null ? 'Nuevo tipo de cliente' : 'Editar tipo de cliente'}</h2>
         <form onSubmit={save}><div className="form-grid"><label>Nombre del tipo<input required maxLength={100} value={name} onChange={event => setName(event.target.value)} /></label></div>
           <button className="primary-button" type="submit">{editing === null ? 'Crear tipo' : 'Guardar cambios'}</button>
@@ -48,6 +51,6 @@ export function AbmModule({ additionalCatalog, onAdditionalsChange, additionalSt
           </div>;
         })}</div>
       </section>
-    </>}
+    </>}</>}
   </>;
 }

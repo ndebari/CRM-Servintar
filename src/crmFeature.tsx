@@ -1,5 +1,5 @@
-import { SessionControls } from './SessionControls';
-import { useEffect, useRef, useState } from 'react';
+import { SessionContext, SessionControls } from './SessionControls';
+import { useContext, useEffect, useRef, useState } from 'react';
 import operatorCatalog from '../netlify/lib/toll-operators.json';
 import {
   Building2,
@@ -1132,6 +1132,7 @@ export function ClientsModule({
   onSaveClient: (client: Client) => Promise<void>;
   onDeleteClient: (id: string) => Promise<void>;
 }) {
+  const isAdministrator=useContext(SessionContext)?.admin===true;
   const [editingClient, setEditingClient] = useState<Client>(createEmptyClient(clientTypes[0] ?? ''));
   const [showDetails, setShowDetails] = useState(false);
   const [clientError, setClientError] = useState('');
@@ -1191,10 +1192,10 @@ export function ClientsModule({
           <p className="eyebrow">Modulo</p>
           <h1>Clientes</h1>
         </div>
-        <button className="primary-button" onClick={() => openClient(createEmptyClient(clientTypes[0] ?? ''))} type="button">
+        {isAdministrator && <button className="primary-button" onClick={() => openClient(createEmptyClient(clientTypes[0] ?? ''))} type="button">
           <Building2 size={18} />
           Nuevo cliente
-        </button>
+        </button>}
       <SessionControls /></header>
 
       {showDetails && <>
