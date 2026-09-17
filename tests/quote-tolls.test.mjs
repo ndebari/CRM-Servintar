@@ -10,7 +10,7 @@ after(() => rm(temp, { recursive: true, force: true }));
 const source = await readFile(new URL('../src/crmFeature.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
 await writeFile(`${temp}/quote.mjs`, compiled.outputText);
-const { calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
+const { calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
 
 function draftWithTolls(amount) {
   const draft = { ...createQuoteDraft('demo'), distanceKm: 100, requiredDays: 1, utilityPercent: 20, tolls: [{ id: 'a:0', name: 'Peaje prueba', locality: 'Localidad prueba', road: '', province: '', amount, source: 'manual' }], tollListStatus: 'manual', additionals: [{ id: '1', name: 'Demora', amount: 1000, discountPercent: 10 }] };
@@ -106,4 +106,39 @@ test('route refresh preserves individual payment and selections even with a pend
  assert.equal(refreshed[0].payment, 'cash');
  assert.equal(refreshed[0].period, 'peak');
  assert.equal(refreshed[0].direction, 'caba');
+});
+
+test('Google return boundary follows the final leg, not half the route', async () => {
+ const point = (lat, lng) => ({lat:()=>lat, lng:()=>lng});
+ const legs = [
+  {distance:{value:10000},steps:[{path:[point(-34,-58),point(-34.1,-58),point(-34.2,-58)]}]},
+  {distance:{value:5000},steps:[{path:[point(-34.2,-58),point(-34.3,-58)]}]},
+  {distance:{value:15000},steps:[{path:[point(-34.3,-58),point(-34,-58)]}]}
+ ];
+ globalThis.window = {google:{maps:{DirectionsService:class {route(input, callback){callback({routes:[{legs}]},'OK');}}}}};
+ try {
+  const route = await calculateGoogleRoute(['Base','Retiro','Destino','Base']);
+  assert.equal(route.distanceKm, 30);
+  assert.equal(route.returnStartIndex, 5);
+  assert.equal(route.path.length, 7);
+ } finally { delete globalThis.window; }
+});
+test('UI groups every crossing once and keeps unknown legacy roundtrip rows separate', () => {
+ const groups = getTollGroups({isRoundTrip:true,tolls:[
+  {id:'ida',journey:'outbound',amount:10}, {id:'vuelta',journey:'return',amount:20}, {id:'legacy',amount:null}
+ ]});
+ assert.deepEqual(groups.map(g=>g.rows.map(r=>r.index)), [[0],[1],[2]]);
+ assert.equal(getTollGroups({isRoundTrip:false,tolls:[]}).length, 1);
+ assert.equal(getTollGroups({isRoundTrip:true,tolls:[]}).length, 2);
+});
+
+test('utility must be explicitly numeric: zero is valid, blank and invalid values cannot produce quotes', () => {
+ const draft = draftWithTolls(100);
+ draft.utilityPercent = 0;
+ const result = buildPreparedQuote(draft, [], {perDay:100,perKm:1});
+ assert.ok(Number.isFinite(result.amount));
+ assert.match(result.text, /Utilidad aplicada: 0%/);
+ for (const value of ['', NaN, Infinity, -1, 100]) {
+  assert.throws(() => buildPreparedQuote({...draft,utilityPercent:value}, [], {perDay:100,perKm:1}), /Completá la utilidad/);
+ }
 });
