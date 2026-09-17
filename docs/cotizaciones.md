@@ -13,3 +13,7 @@ supabase/quote-register.sql prepara tablas y acceso limitado a miembros autentic
 ## Verificación
 
 Pruebas unitarias: tests/quote-lifecycle.test.mjs. Verificación en navegador sobre un origen local aislado: guardados concurrentes con números distintos, rechazo de aprobación sin envío, selección de contacto, revisión vinculada, aprobación, recuperación de registros al recargar y filtro de Lista de precios.
+
+## Actualización de infraestructura
+
+El esquema completo fue creado en el proyecto Supabase CRM Servintar con supabase/crm-complete.sql. La app aún usa IndexedDB; falta activar el adaptador remoto y Supabase Auth. Ver supabase/README.md para el contrato de conexión. El antiguo quote-register.sql queda como referencia histórica.

@@ -1,3 +1,4 @@
+-- HISTÓRICO: para instalaciones nuevas usar crm-complete.sql.
 -- Preparación para la base compartida. NO ejecutado desde la app.
 -- Requiere usuarios autenticados y alta explícita en crm_members por el administrador.
 -- El adaptador activo de esta versión sigue siendo IndexedDB (por navegador).

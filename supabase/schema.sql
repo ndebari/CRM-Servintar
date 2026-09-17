@@ -1,3 +1,4 @@
+-- HISTÓRICO: para instalaciones nuevas usar crm-complete.sql.
 create type customer_status as enum ('Activo', 'Potencial', 'Dormido');
 create type deal_stage as enum ('nuevo', 'contactado', 'cotizando', 'ganado');
 
