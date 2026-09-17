@@ -156,6 +156,7 @@ export type RouteToll = {
   amount: number | null; source: 'pending' | 'automatic' | 'official' | 'manual';
   payment?: "" | "tag" | "cash" | "electronic";
   journey?: "outbound" | "return";
+  travelSense?: string; legIndex?: number; legOrigin?: string; legDestination?: string;
   operator?: string; period?: string; direction?: string; stationSourceUrl?: string;
   sourceUrl?: string; sourcePage?: string; category?: string; checkedAt?: string; lookupMessage?: string;
 };
@@ -343,7 +344,7 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
       '',
       `Transporte base: ${currency.format(baseAmount)}`,
       "Peajes · tractor 3 ejes + araña 3 ejes:",
-      ...draft.tolls.map((toll, index) => "- " + (toll.journey === "return" ? "Vuelta · " : toll.journey === "outbound" || !draft.isRoundTrip ? "Ida · " : "") + "Paso " + (index + 1) + ": " + toll.name + " — " + toll.locality + ": " + currency.format(toll.amount!) + (toll.source === "manual" ? " (manual)" : "")),
+      ...draft.tolls.map((toll, index) => "- " + (toll.journey === "return" ? "Vuelta · " : toll.journey === "outbound" || !draft.isRoundTrip ? "Ida · " : "") + "Paso " + (index + 1) + ": " + toll.name + " — " + toll.locality + (toll.travelSense ? " · " + toll.travelSense : "") + ": " + currency.format(toll.amount!) + (toll.source === "manual" ? " (manual)" : "")),
       "Total peajes: " + currency.format(tollSummary.total),
       'Adicionales:',
       additionalsText,
@@ -428,13 +429,14 @@ export function getTollGroups(draft: Pick<TransportQuoteDraft, 'tolls' | 'isRoun
 export function mergeRouteTolls(incoming: RouteToll[], previous: RouteToll[]) {
   const merged = incoming.map(toll => {
     const old = previous.find(item => item.id === toll.id);
-    return old ? { ...toll, ...old, journey: toll.journey ?? old.journey } : toll;
+    return old ? { ...toll, ...old, journey: toll.journey ?? old.journey,
+      travelSense: toll.travelSense, legIndex: toll.legIndex, legOrigin: toll.legOrigin, legDestination: toll.legDestination } : toll;
   });
   return [...merged, ...previous.filter(toll => toll.id.startsWith('manual:') && !merged.some(item => item.id === toll.id))];
 }
 
 export function getTruckRouteKey(draft: TransportQuoteDraft) {
-  return JSON.stringify({ policy: 'major-roads-v2', stops: getRouteStops(draft) });
+  return JSON.stringify({ policy: 'major-roads-v2-directed-legs', stops: getRouteStops(draft), isRoundTrip: draft.isRoundTrip });
 }
 
 // Directions exposes instructions, not road classes or truck restrictions.
@@ -498,6 +500,7 @@ export async function calculateGoogleRoute(stops: string[]) {
     legPaths[index].every(point => point.every(Number.isFinite)));
   return {
     summaries,
+    legs: completeGeometry ? legPaths.map((path, index) => ({path, origin: stops[index], destination: stops[index + 1]})) : [],
     distanceKm: Math.round(legs.reduce((sum, leg) => sum + leg.distance!.value, 0) / 1000),
     path: completeGeometry ? legPaths.flat() : [],
     returnStartIndex: legPaths.slice(0, -1).reduce((count, points) => count + points.length, 0)
@@ -545,10 +548,10 @@ export function CotizadorHome({
   latestDraft.current = draft;
   latestOnChange.current = onDraftChange;
   const manualDistanceVersion = useRef(0);
-  const distanceKey = JSON.stringify(routeStops);
+  const distanceKey = JSON.stringify([routeStops, draft.isRoundTrip]);
   const previousDistanceKey = useRef(distanceKey);
   const [distanceStatus, setDistanceStatus] = useState('');
-  const googleRoute = useRef<{ key: string; distanceKm: number; path: number[][]; returnStartIndex: number; summaries: string[] } | null>(null);
+  const googleRoute = useRef<(Awaited<ReturnType<typeof calculateGoogleRoute>> & { key: string }) | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -572,7 +575,7 @@ export function CotizadorHome({
           await loadGooglePlaces();
           return { ...await calculateGoogleRoute(routeStops), key: distanceKey };
         })();
-        if (!active || JSON.stringify(getRouteStops(latestDraft.current)) !== distanceKey) return;
+        if (!active || JSON.stringify([getRouteStops(latestDraft.current), latestDraft.current.isRoundTrip]) !== distanceKey) return;
         googleRoute.current = route;
         if (version === manualDistanceVersion.current) {
           latestDraft.current = { ...latestDraft.current, distanceKm: route.distanceKm, requiredDays: calculateRequiredDays(route.distanceKm) };
@@ -583,11 +586,11 @@ export function CotizadorHome({
         setRouteStatus('Estimando estaciones sobre el trazado de Google…');
         const response = await fetch('/.netlify/functions/route-tolls', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-          body: JSON.stringify({ path: route.path, returnStartIndex: latestDraft.current.isRoundTrip ? route.returnStartIndex : undefined })
+          body: JSON.stringify({ legs: route.legs, isRoundTrip: latestDraft.current.isRoundTrip })
         });
         const result = await response.json();
         if (!response.ok || !Array.isArray(result.tolls)) throw new Error(result.error || 'No se pudo estimar el listado de peajes.');
-        if (!active || JSON.stringify(getRouteStops(latestDraft.current)) !== distanceKey) return;
+        if (!active || JSON.stringify([getRouteStops(latestDraft.current), latestDraft.current.isRoundTrip]) !== distanceKey) return;
         latestDraft.current = { ...latestDraft.current, tolls: mergeRouteTolls(result.tolls, latestDraft.current.tolls), tollListStatus: 'pending', tollRouteKey: getTruckRouteKey(latestDraft.current) };
         latestOnChange.current(latestDraft.current);
         setRouteStatus(result.tolls.length + ' paso(s) de peaje estimado(s) sobre la ruta de Google. Revisá nombres, localidades y posibles faltantes antes de confirmar. Mapa: OpenStreetMap, ' + result.catalogDate + '.');
@@ -883,9 +886,11 @@ export function CotizadorHome({
                 </div>
                 {group.rows.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Sin estaciones identificadas todavía.' : 'Sin peajes registrados en este tramo.'}</p>}
                 <div className="toll-list">
-              {group.rows.map(({ toll, index }) => (
+              {group.rows.map(({ toll, index }, groupIndex) => (
                 <div className="toll-card" key={toll.id}>
-                  <div className="toll-card-heading"><strong>Paso {index + 1}</strong><span>{toll.source === 'official' ? 'Publicación oficial · 6 ejes' : toll.source === 'automatic' ? 'Tarifa estimada · 6 ejes' : toll.amount === null ? 'Importe pendiente' : 'Importe manual'}</span></div>
+                  <div className="toll-card-heading"><strong>{group.id === 'return' ? 'Vuelta' : group.id === 'outbound' ? 'Ida' : 'Tramo sin identificar'} · Paso {groupIndex + 1}</strong><span>{toll.source === 'official' ? 'Publicación oficial · 6 ejes' : toll.source === 'automatic' ? 'Tarifa estimada · 6 ejes' : toll.amount === null ? 'Importe pendiente' : 'Importe manual'}</span></div>
+                  <p className="toll-travel-sense"><strong>{toll.travelSense || 'Sentido de circulación pendiente de identificar'}</strong></p>
+                  {toll.legOrigin && toll.legDestination && <p className="muted-copy">Tramo: {toll.legOrigin} → {toll.legDestination}</p>}
                   <div className="form-grid">
                     <label>Nombre del peaje<input aria-label={'Nombre del peaje ' + (index + 1)} value={toll.name} placeholder="Completar nombre" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, name: event.target.value, amount: null, source: 'pending', sourceUrl: undefined, lookupMessage: undefined } : item))} /></label>
                     <label>Localidad<input aria-label={'Localidad del peaje ' + (index + 1)} value={toll.locality} placeholder="Localidad no informada" onChange={event => updateDraft('tolls', draft.tolls.map(item => item.id === toll.id ? { ...item, locality: event.target.value } : item))} /></label>

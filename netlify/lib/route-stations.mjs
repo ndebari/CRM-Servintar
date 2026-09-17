@@ -4,6 +4,16 @@ import { findPublication } from './official-publications.mjs';
 const meters = 111320;
 const metadata = new Map(details.stations.map(station => [station.id, station]));
 const namedStations = catalog.stations.map(station => ({ ...station, ...metadata.get(station.id) }));
+
+function crossingSense(hit) {
+  // Sense follows the actual crossing, independently of the journey label.
+  const northbound = hit.dy > 0;
+  if (hit.station.plazaId === 'ausol-campana') return northbound ? 'Hacia Escobar / Zárate' : 'Hacia CABA';
+  if (hit.station.plazaId?.startsWith('ausa-')) return northbound ? 'Hacia General Paz / Acceso Norte' : 'Hacia el centro de CABA';
+  const compass = ['norte', 'noreste', 'este', 'sudeste', 'sur', 'sudoeste', 'oeste', 'noroeste'];
+  const bearing = (Math.atan2(hit.dx, hit.dy) * 180 / Math.PI + 360) % 360;
+  return 'Hacia el ' + compass[Math.round(bearing / 45) % 8] + ' (estimado)';
+}
 function project(point, a, b) {
   const scale = Math.cos((a[0] + b[0]) / 2 * Math.PI / 180);
   const dx = (b[1] - a[1]) * meters * scale, dy = (b[0] - a[0]) * meters;
@@ -87,12 +97,23 @@ export function estimateCrossings(path, stations = namedStations) {
     const operator = station.operator ?? findPublication({ name }, 'tag').operator;
     const coastal = operator === 'aubasa' && station.lat < -35;
     return { id: 'osm:' + identity + ':' + count, name, locality: station.locality || '', road: station.road || '', province: station.province || '', amount: null, source: 'pending', payment: '', operator,
+      travelSense: crossingSense(hit),
       direction: operator === 'aubasa' ? coastal ? 'both' : hit.direction : undefined,
       lookupMessage: 'Estación estimada sobre la ruta de Google. Revisá localidad, horario y tarifa.',
       stationSourceUrl: 'https://www.openstreetmap.org/node/' + station.id };
   });
 }
 export const catalogDate = catalog.date;
+
+export function estimateLegCrossings(legs, isRoundTrip, stations = namedStations) {
+  return legs.flatMap((leg, index) => {
+    const journey = isRoundTrip && index === legs.length - 1 ? 'return' : 'outbound';
+    return estimateCrossings(leg.path, stations).map(toll => ({
+      ...toll, id: journey + ':leg-' + index + ':' + toll.id, journey,
+      legIndex: index, legOrigin: leg.origin, legDestination: leg.destination
+    }));
+  });
+}
 
 export function estimateJourneyCrossings(path, returnStartIndex, stations = namedStations) {
   const groups = returnStartIndex === undefined

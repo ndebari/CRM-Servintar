@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateCrossings, estimateJourneyCrossings } from '../netlify/lib/route-stations.mjs';
+import { estimateCrossings, estimateJourneyCrossings, estimateLegCrossings } from '../netlify/lib/route-stations.mjs';
 import { handler } from '../netlify/functions/route-tolls.mjs';
 import referenceRoute from './fixtures/illia-zarate.json' with { type: 'json' };
 import stationDetails from '../netlify/lib/toll-station-details.json' with { type: 'json' };
@@ -53,6 +53,48 @@ test('reference route to Terminal Zárate has named plazas once per direction, n
  assert.ok(rows.every(t => t.road && t.province));
  assert.ok(rows.filter(t => t.name === 'Campana').every(t => t.locality === 'Ricardo Rojas' && t.road.includes('km 34')));
  assert.equal(new Set(rows.map(t=>t.id)).size,4);
+ assert.deepEqual(rows.filter(t=>t.name==='Campana').map(t=>t.travelSense), ['Hacia Escobar / Zárate','Hacia CABA']);
+});
+
+test('individual legs retain crossing sense, visit order and return attribution', () => {
+ const legs = [
+   {origin:'Base',destination:'Retiro',path:[[-34.02,-58],[-33.98,-58]]},
+   {origin:'Retiro',destination:'Puerto',path:[[-33.98,-58],[-34.02,-58]]},
+   {origin:'Puerto',destination:'Base',path:[[-34.02,-58],[-33.98,-58]]}
+ ];
+ const rows=estimateLegCrossings(legs,true,stations);
+ assert.deepEqual(rows.map(t=>[t.journey,t.legOrigin,t.legDestination,t.travelSense]),[
+   ['outbound','Base','Retiro','Hacia el norte (estimado)'],
+   ['outbound','Retiro','Puerto','Hacia el sur (estimado)'],
+   ['return','Puerto','Base','Hacia el norte (estimado)']
+ ]);
+ assert.equal(new Set(rows.map(t=>t.id)).size,3);
+ assert.ok(estimateLegCrossings(legs,false,stations).every(t=>t.journey==='outbound'));
+ // Two independently snapped stop locations must not create an invented crossing.
+ assert.equal(estimateLegCrossings([
+   {origin:'A',destination:'B',path:[[-34.02,-58],[-34.01,-58]]},
+   {origin:'B',destination:'C',path:[[-33.99,-58],[-33.98,-58]]}
+ ],false,stations).length,0);
+});
+
+test('leg API validates complete ordered roundtrips and labels the two directions', async () => {
+ const legs=[
+   {origin:'TRP',destination:'Zárate',path:referenceRoute.path.slice(0,referenceRoute.returnStartIndex)},
+   {origin:'Zárate',destination:'TRP',path:referenceRoute.path.slice(referenceRoute.returnStartIndex)}
+ ];
+ const call=body=>handler({httpMethod:'POST',body:JSON.stringify(body)});
+ const result=await call({legs,isRoundTrip:true});
+ assert.equal(result.statusCode,200);
+ const rows=JSON.parse(result.body).tolls;
+ assert.deepEqual(rows.map(t=>t.journey),['outbound','outbound','return','return']);
+ assert.ok(rows.slice(0,2).every(t=>t.legOrigin==='TRP'));
+ assert.ok(rows.slice(2).every(t=>t.legOrigin==='Zárate'));
+ for(const body of [null,{legs:[],isRoundTrip:true},{legs:[legs[0]],isRoundTrip:true},
+   {legs:[legs[0],{...legs[1],origin:'Otro'}],isRoundTrip:true},
+   {legs:[legs[0],{...legs[1],path:[]}],isRoundTrip:true},
+   {legs:[legs[0],{...legs[1],destination:'Otro'}],isRoundTrip:true}]) {
+   assert.equal((await call(body)).statusCode,400);
+ }
 });
 
 test('access lane must be followed: passing 15m away or across it is not a toll crossing', () => {

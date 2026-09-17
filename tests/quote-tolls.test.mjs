@@ -187,7 +187,17 @@ test('Google return boundary follows the final leg, not half the route', async (
   assert.equal(route.distanceKm, 30);
   assert.equal(route.returnStartIndex, 5);
   assert.equal(route.path.length, 7);
+  assert.deepEqual(route.legs.map(leg=>[leg.origin,leg.destination,leg.path.length]),[['Base','Retiro',3],['Retiro','Destino',2],['Destino','Base',2]]);
  } finally { delete globalThis.window; }
+});
+
+test('refreshed leg attribution and physical sense cannot be overwritten by stale labels', () => {
+ const current={id:'outbound:leg-0:osm:1:0',name:'Campana',journey:'outbound',travelSense:'Hacia Escobar / Zárate',legOrigin:'TRP',legDestination:'Zárate',legIndex:0};
+ const [merged]=mergeRouteTolls([current],[{...current,journey:'return',travelSense:'Hacia CABA',legOrigin:'Zárate',legDestination:'TRP',amount:100,source:'manual'}]);
+ assert.equal(merged.journey,'outbound');
+ assert.equal(merged.travelSense,'Hacia Escobar / Zárate');
+ assert.equal(merged.legOrigin,'TRP');
+ assert.equal(merged.amount,100);
 });
 test('UI groups every crossing once and keeps unknown legacy roundtrip rows separate', () => {
  const groups = getTollGroups({isRoundTrip:true,tolls:[
