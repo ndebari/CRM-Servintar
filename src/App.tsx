@@ -1,3 +1,6 @@
+import { quoteNumber } from './quoteLifecycle';
+import { QuotesModule } from './QuotesModule';
+import { initializeDatabase, readDatabase, storeQuote, changeQuote, storeClient, removeClient, storeClients } from './quoteDatabase';
 import { AbmModule } from './AbmModule';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -23,13 +26,9 @@ import {
   initialAdditionals,
   initialClients,
   initialClientTypes,
-  initialQuoteStatuses,
-  initialRequiredActions,
-  QuotesModule,
   type AdditionalDefinition,
   type Client,
   type PreparedQuote,
-  type QuoteStatus,
   type TransportQuoteDraft
 } from './crmFeature';
 type CostAllocation = {
@@ -132,7 +131,7 @@ const currency = new Intl.NumberFormat('es-AR', {
 
 function App() {
   const today = new Date();
-  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos' | 'abm'>('cotizador');
+  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos' | 'abm' | 'precios'>('cotizador');
   const [month] = useState(months[today.getMonth()]);
   const [year] = useState(String(today.getFullYear()));
   const [lookupMonth, setLookupMonth] = useState(months[today.getMonth()]);
@@ -149,11 +148,9 @@ function App() {
   const saveClientTypes = (types: string[], rename?: { from: string; to: string }) => {
     try { localStorage.setItem('servintar.clientTypes.v1', JSON.stringify(types)); } catch { return false; }
     setClientTypes(types);
-    if (rename) setClients(current => current.map(client => client.type === rename.from ? { ...client, type: rename.to } : client));
+    if (rename) {const updated=clients.map(client=>client.type===rename.from?{...client,type:rename.to}:client);void storeClients(updated).then(refreshDatabase).catch(()=>setDatabaseError('No se pudo actualizar el tipo en los clientes.'));}
     return true;
   };
-  const [quoteStatuses, setQuoteStatuses] = useState<QuoteStatus[]>(initialQuoteStatuses);
-  const [requiredActions, setRequiredActions] = useState(initialRequiredActions);
   const [additionalCatalog, setAdditionalCatalog] = useState<AdditionalDefinition[]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('servintar.additionalCatalog.v1') ?? 'null');
@@ -167,13 +164,27 @@ function App() {
     catch { setAdditionalStatus('No se pudo guardar el catálogo en este navegador. No se aplicaron los cambios.'); return false; }
     setAdditionalCatalog(items); setAdditionalStatus('Catálogo guardado.'); return true;
   };
-  const [quotes, setQuotes] = useState<PreparedQuote[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('servintar.quotes.v1') ?? '[]');
-      return Array.isArray(saved) ? saved.filter(item => item && typeof item.id === 'string' && typeof item.text === 'string' && typeof item.clientId === 'string' && typeof item.amount === 'number' && Number.isFinite(item.amount)) : [];
-    } catch { return []; }
-  });
+  const [quotes, setQuotes] = useState<PreparedQuote[]>([]);
+  const [databaseReady, setDatabaseReady] = useState(false);
+  const [databaseError, setDatabaseError] = useState('');
+  const [revisionParent, setRevisionParent] = useState<PreparedQuote | null>(null);
+  const [quoteFocus, setQuoteFocus] = useState('');
   const [quoteDraft, setQuoteDraft] = useState<TransportQuoteDraft>(() => createQuoteDraft(initialClients[0]?.id ?? ''));
+  const refreshDatabase = async () => { const data=await readDatabase();setQuotes(data.quotes);setClients(data.clients); };
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        const saved=JSON.parse(localStorage.getItem('servintar.quotes.v1') || '[]');
+        const savedClients=JSON.parse(localStorage.getItem('servintar.clients.v1') || 'null');
+        await initializeDatabase(Array.isArray(saved)?saved:[],Array.isArray(savedClients)?savedClients:initialClients);
+        await refreshDatabase();setDatabaseReady(true);
+      } catch {setDatabaseError('No se pudo abrir la base de datos. Los cambios no se guardarán hasta restablecer el almacenamiento.');}
+    };
+    void initialize();
+    const sync=()=>{void refreshDatabase().catch(()=>setDatabaseError('No se pudo actualizar la base de datos.'));};
+    window.addEventListener('focus',sync);
+    return ()=>window.removeEventListener('focus',sync);
+  }, []);
 
   const totals = useMemo(() => calculateTotals(costLines), [costLines]);
   const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === lookupMonth && snapshot.year === lookupYear);
@@ -308,35 +319,37 @@ function App() {
     setCostLines((currentLines) => currentLines.filter((line) => line.id !== id));
   };
 
-  const saveClient = (client: Client) => {
-    setClients((currentClients) => {
-      const previous = currentClients.find((item) => item.id === client.id);
-      const saved = { ...client, createdAt: previous ? previous.createdAt : new Date().toISOString(), active: client.active !== false };
-      return previous ? currentClients.map((item) => (item.id === client.id ? saved : item)) : [saved, ...currentClients];
-    });
-    setQuoteDraft((currentDraft) => ({ ...currentDraft, clientId: currentDraft.clientId || client.id }));
+  const saveClient = async (client: Client) => {
+    if(!databaseReady) throw new Error('La base de datos todavía no está disponible.');
+    const previous=clients.find(c=>c.id===client.id);
+    await storeClient({...client,createdAt:previous?.createdAt || new Date().toISOString(),active:client.active!==false});
+    await refreshDatabase();
+    setQuoteDraft(current=>({...current,clientId:current.clientId || client.id}));
   };
-
-  const deleteClient = (id: string) => {
-    setClients(current => current.filter(client => client.id !== id));
-    setQuoteDraft(current => current.clientId === id ? { ...current, clientId: '', contactKey: undefined } : current);
+  const deleteClient = async (id: string) => {
+    await removeClient(id);await refreshDatabase();
+    setQuoteDraft(current=>current.clientId===id?{...current,clientId:'',contactKey:undefined}:current);
   };
-
-  const prepareQuote = () => {
-    const error = getQuoteStageErrors(quoteDraft, clients).find(Boolean);
-    if (error) return error;
-    const preparedQuote = buildPreparedQuote(quoteDraft, clients, totals);
-    const nextQuotes = [preparedQuote, ...quotes];
-    try { localStorage.setItem('servintar.quotes.v1', JSON.stringify(nextQuotes)); }
-    catch { return 'No se pudo guardar en este navegador. La cotización sigue abierta para volver a intentarlo.'; }
-    setQuotes(nextQuotes);
-    setQuoteDraft((currentDraft) => ({
-      ...currentDraft,
-      state: 'Pendiente de envio',
-      requiredAction: 'Enviar al cliente'
-    }));
-    setView('cotizaciones');
+  const prepareQuote = async () => {
+    if(!databaseReady) return 'La base de datos todavía no está disponible.';
+    const error=getQuoteStageErrors(quoteDraft,clients).find(Boolean);if(error)return error;
+    if(revisionParent && quoteDraft.clientId!==revisionParent.clientId) return 'La recotización debe conservar el cliente original.';
+    const prepared=buildPreparedQuote(quoteDraft,clients,totals);
+    const saved=await storeQuote(prepared,revisionParent?.id);
+    await refreshDatabase();setQuoteFocus(saved.id);setRevisionParent(null);
+    setQuoteDraft(createQuoteDraft(quoteDraft.clientId));setView('cotizaciones');
     return undefined;
+  };
+  const updateQuote = async (id:string, action:'send'|'approve', contactKey?:string) => {
+    await changeQuote(id,action,contactKey);await refreshDatabase();
+  };
+  const requote = (quote:PreparedQuote) => {
+    if(!quote.draft)return;
+    const today=new Date();const date=new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    const draft=structuredClone(quote.draft);
+    if(!clients.some(c=>c.id===quote.clientId) && quote.clientSnapshot) setClients(current=>[...current,quote.clientSnapshot!]);
+    setQuoteDraft({...draft,clientId:quote.clientId,quoteDate:date,state:'Pendiente de envio',requiredAction:'Enviar al cliente'});
+    setRevisionParent(quote);setView('cotizador');
   };
 
   const saveMonthlySnapshot = async () => {
@@ -446,10 +459,11 @@ function App() {
             <Users size={18} />
             Clientes
           </button>
-          <button className={`nav-item ${view === 'cotizaciones' ? 'active' : ''}`} onClick={() => setView('cotizaciones')} aria-current={view === 'cotizaciones' ? 'page' : undefined} type="button">
+          <button className={`nav-item ${view === 'cotizaciones' ? 'active' : ''}`} onClick={() => {setQuoteFocus('');setView('cotizaciones');}} aria-current={view === 'cotizaciones' ? 'page' : undefined} type="button">
             <ClipboardList size={18} />
             Cotizaciones
           </button>
+          <button className={`nav-item ${view === 'precios' ? 'active' : ''}`} onClick={() => {setQuoteFocus('');setView('precios');}} type="button"><ClipboardList size={18} />Lista de precios</button>
           <button className={`nav-item ${view === 'costos' ? 'active' : ''}`} onClick={() => setView('costos')} aria-current={view === 'costos' ? 'page' : undefined} type="button">
             <FileSpreadsheet size={18} />
             Estructura de costos
@@ -465,6 +479,10 @@ function App() {
       </aside>
 
       <section className="workspace" key={view}>
+        {databaseError && <p role="alert">{databaseError}</p>}
+        {!databaseReady && !databaseError && <p>Cargando registros…</p>}
+        {(view==='cotizaciones' || view==='precios') && <p className="muted-copy">Registros guardados en este navegador.</p>}
+        {view==='cotizador' && revisionParent && <section className="panel"><strong>Recotización {quoteNumber(revisionParent.sequence!, Math.max(0,...quotes.filter(q=>(q.rootId || q.id)===(revisionParent.rootId || revisionParent.id)).map(q=>q.revision || 0))+1)}</strong><p>Origen: {revisionParent.number}. La versión se confirma al guardar.</p><button type="button" className="ghost-button" onClick={()=>{setRevisionParent(null);setQuoteDraft(createQuoteDraft(quoteDraft.clientId));}}>Cancelar recotización</button></section>}
         {view === 'cotizador' && (
           <CotizadorHome
             additionalCatalog={additionalCatalog}
@@ -485,16 +503,7 @@ function App() {
             onDeleteClient={deleteClient}
           />
         )}
-        {view === 'cotizaciones' && (
-          <QuotesModule
-            clients={clients}
-            onRequiredActionsChange={setRequiredActions}
-            onStatusesChange={setQuoteStatuses}
-            quotes={quotes}
-            requiredActions={requiredActions}
-            statuses={quoteStatuses}
-          />
-        )}
+        {(view === 'cotizaciones' || view === 'precios') && <QuotesModule clients={clients} quotes={quotes} priceList={view==='precios'} focusId={quoteFocus} onChange={updateQuote} onRequote={requote} />}
         {view === 'costos' && (
           <CostStructure
             costLines={costLines}

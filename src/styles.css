@@ -1274,3 +1274,9 @@ a { color: #125da8; text-underline-offset: 3px; }
 
 .abm-navigation { display: flex; gap: 12px; flex-wrap: wrap; margin: 0 0 24px; }
 .client-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+
+.quote-table-scroll { overflow-x: auto; }
+.quote-register-table { width: 100%; border-collapse: collapse; text-align: left; }
+.quote-register-table th, .quote-register-table td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
+.quote-family { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.quote-record-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.7; }

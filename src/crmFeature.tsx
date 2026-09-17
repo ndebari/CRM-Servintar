@@ -132,7 +132,7 @@ export type Client = {
   purchasingContact: ContactInfo;
 };
 
-export type QuoteStatus = 'Borrador' | 'Pendiente de envio' | 'Enviada' | 'Aprobada' | 'Rechazada';
+export type QuoteStatus = 'Borrador' | 'Pendiente de envio' | 'Enviada' | 'Aprobada' | 'Rechazada' | 'Enviada / pendiente' | 'Recotizada';
 export type TransportKind = 'expo' | 'impo' | 'carreton' | 'distribucion' | 'carga-suelta' | 'otro';
 const transportLabels: Record<TransportKind,string> = {expo:'Expo',impo:'Impo',carreton:'Carretón',distribucion:'Distribución','carga-suelta':'Carga suelta',otro:'Otro'};
 export const quoteStages = ['Cliente','Descripción del servicio','Cotización','Peajes','Adicionales','Detalle de la cotización'];
@@ -214,6 +214,16 @@ export type TransportQuoteDraft = {
 };
 
 export type PreparedQuote = {
+  number?: string;
+  sequence?: number;
+  revision?: number;
+  rootId?: string;
+  parentId?: string;
+  createdAt?: string;
+  clientSnapshot?: Client;
+  sentAt?: string;
+  sentTo?: ContactInfo;
+  approvedAt?: string;
   id: string;
   clientId: string;
   requestDate: string;
@@ -371,7 +381,9 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
           .join('\n');
 
   return {
-    id: `cotizacion-${Date.now()}`,
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    clientSnapshot: client ? structuredClone(client) : undefined,
     clientId: draft.clientId,
     requestDate: draft.requestDate,
     quoteDate: draft.quoteDate,
@@ -593,12 +605,13 @@ export function CotizadorHome({
   draft: TransportQuoteDraft;
   previousQuotes: PreparedQuote[];
   onDraftChange: (draft: TransportQuoteDraft) => void;
-  onPrepareQuote: () => string | undefined;
+  onPrepareQuote: () => Promise<string | undefined>;
   totals: CostTotals;
 }) {
   const selectedClient = clients.find((client) => client.id === draft.clientId);
   const [stage, setStage] = useState(0);
   const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const stageHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { stageHeading.current?.focus(); }, [stage]);
   const contacts = getClientContacts(selectedClient);
@@ -1083,7 +1096,7 @@ export function CotizadorHome({
         <button className="ghost-button" type="button" disabled={stage===0} onClick={() => changeStage(stage-1)}>Anterior</button>
         <p role="status">{saveError || (stage===5 ? stageErrors.find(Boolean) : stageErrors[stage]) || ''}</p>
         {stage<5 ? <button className="primary-button" type="button" disabled={Boolean(stageErrors[stage])} onClick={() => changeStage(stage+1)}>Siguiente</button>
-          : <button className="primary-button" type="button" disabled={!canPrepare} onClick={() => {try {setSaveError(onPrepareQuote() || '');} catch(error) {setSaveError(error instanceof Error ? error.message : 'No se pudo guardar la cotización.');}}}><Save size={20} /> Guardar</button>}
+          : <button className="primary-button" type="button" disabled={!canPrepare || isSaving} onClick={async () => {setIsSaving(true); try {setSaveError(await onPrepareQuote() || '');} catch(error) {setSaveError(error instanceof Error ? error.message : 'No se pudo guardar la cotización.');} finally {setIsSaving(false);}}}><Save size={20} /> Guardar</button>}
       </footer>
     </div>
   );
@@ -1115,8 +1128,8 @@ export function ClientsModule({
 }: {
   clients: Client[];
   clientTypes: string[];
-  onSaveClient: (client: Client) => void;
-  onDeleteClient: (id: string) => void;
+  onSaveClient: (client: Client) => Promise<void>;
+  onDeleteClient: (id: string) => Promise<void>;
 }) {
   const [editingClient, setEditingClient] = useState<Client>(createEmptyClient(clientTypes[0] ?? ''));
   const [showDetails, setShowDetails] = useState(false);
@@ -1160,11 +1173,11 @@ export function ClientsModule({
     }));
   };
 
-  const saveEditingClient = () => {
+  const saveEditingClient = async () => {
     setCuitTouched(true);
     if (cuitInvalid) return;
     if (!editingClient.alias.trim() || !editingClient.businessName.trim()) { setClientError('Completá el nombre de fantasía y la razón social.'); return; }
-    onSaveClient({ ...editingClient, cuit: formatCuit(editingClient.cuit), alias: editingClient.alias.trim(), businessName: editingClient.businessName.trim(), active: editingClient.active !== false });
+    try { await onSaveClient({ ...editingClient, cuit: formatCuit(editingClient.cuit), alias: editingClient.alias.trim(), businessName: editingClient.businessName.trim(), active: editingClient.active !== false }); } catch(error) {setClientError(error instanceof Error?error.message:'No se pudo guardar el cliente.');return;}
     setShowDetails(false);
     setClientError('');
     setEditingClient(createEmptyClient(clientTypes[0] ?? ''));
@@ -1197,10 +1210,10 @@ export function ClientsModule({
               <Save size={18} />
               Guardar cliente
             </button>
-            {clients.some(client => client.id === editingClient.id) && <button className="ghost-button danger-button" type="button" onClick={() => {
+            {clients.some(client => client.id === editingClient.id) && <button className="ghost-button danger-button" type="button" onClick={async () => {
               const client = clients.find(item => item.id === editingClient.id);
               if (!client || !window.confirm('¿Eliminar al cliente «' + (client.alias || client.businessName) + '»? Esta acción no se puede deshacer. Las cotizaciones existentes se conservarán.')) return;
-              onDeleteClient(client.id);
+              try {await onDeleteClient(client.id);} catch {setClientError('No se pudo eliminar el cliente.');return;}
               setShowDetails(false);
               setEditingClient(createEmptyClient(clientTypes[0] ?? ''));
               setClientError('');
@@ -1262,131 +1275,6 @@ export function ClientsModule({
   );
 }
 
-export function QuotesModule({
-  clients,
-  quotes,
-  statuses,
-  requiredActions,
-  onStatusesChange,
-  onRequiredActionsChange
-}: {
-  clients: Client[];
-  quotes: PreparedQuote[];
-  statuses: QuoteStatus[];
-  requiredActions: string[];
-  onStatusesChange: (statuses: QuoteStatus[]) => void;
-  onRequiredActionsChange: (actions: string[]) => void;
-}) {
-  const [clientFilter, setClientFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [actionFilter, setActionFilter] = useState('');
-  const [newStatus, setNewStatus] = useState('');
-  const [newAction, setNewAction] = useState('');
-
-  const filteredQuotes = quotes.filter((quoteItem) => {
-    return (
-      (!clientFilter || quoteItem.clientId === clientFilter) &&
-      (!dateFilter || quoteItem.quoteDate === dateFilter || quoteItem.requestDate === dateFilter) &&
-      (!statusFilter || quoteItem.state === statusFilter) &&
-      (!actionFilter || quoteItem.requiredAction === actionFilter)
-    );
-  });
-
-  return (
-    <>
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Modulo</p>
-          <h1>Cotizaciones</h1>
-        </div>
-        <ClipboardList size={24} />
-      </header>
-
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">Filtros</p>
-            <h2>Buscar cotizaciones</h2>
-          </div>
-        </div>
-        <div className="form-grid">
-          <label>
-            Cliente
-            <select value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}>
-              <option value="">Todos</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>{client.alias}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Fecha
-            <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
-          </label>
-          <label>
-            Estado
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="">Todos</option>
-              {statuses.map((status) => (
-                <option key={status}>{status}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Accion requerida
-            <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
-              <option value="">Todas</option>
-              {requiredActions.map((action) => (
-                <option key={action}>{action}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </section>
-
-      <section className="content-grid">
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">ABM</p>
-              <h2>Estados y acciones</h2>
-            </div>
-          </div>
-          <AbmList title="Estados" values={statuses} newValue={newStatus} onNewValueChange={setNewStatus} onValuesChange={(values) => onStatusesChange(values as QuoteStatus[])} />
-          <AbmList title="Acciones requeridas" values={requiredActions} newValue={newAction} onNewValueChange={setNewAction} onValuesChange={onRequiredActionsChange} />
-        </div>
-
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Listado</p>
-              <h2>Cotizaciones guardadas</h2>
-            </div>
-          </div>
-          <div className="entity-list">
-            {filteredQuotes.length === 0 ? (
-              <p className="muted-copy">Todavia no hay cotizaciones para esos filtros.</p>
-            ) : (
-              filteredQuotes.map((quoteItem) => {
-                const client = clients.find((item) => item.id === quoteItem.clientId);
-                return (
-                  <details className="quote-detail" key={quoteItem.id}>
-                    <summary>
-                      <strong>{quoteItem.clientName || client?.alias || 'Cliente'}</strong>
-                      <span>{quoteItem.quoteDate} · {quoteItem.state} · {currency.format(quoteItem.amount)}</span>
-                    </summary>
-                    <pre>{quoteItem.text}</pre>
-                  </details>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </section>
-    </>
-  );
-}
 
 function ContactEditor({
   title,
