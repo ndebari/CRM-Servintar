@@ -1123,37 +1123,31 @@ export function ClientsModule({
   const [clientError, setClientError] = useState('');
   const [cuitTouched, setCuitTouched] = useState(false);
   const [lookupRequest, setLookupRequest] = useState(0);
-  const [lookupStatus, setLookupStatus] = useState('');
-  const [lookupSource, setLookupSource] = useState('');
-  const [lookupProvider, setLookupProvider] = useState('');
   const nameRevision = useRef(0);
   useEffect(() => {
-    setLookupStatus(''); setLookupSource('');
     if (!showDetails || !lookupRequest || validateCuit(editingClient.cuit)) return;
     const controller = new AbortController();
     const cuit = editingClient.cuit.replace(/-/g, '');
     const revision = nameRevision.current;
     const timer = window.setTimeout(async () => {
-      setLookupStatus('Buscando razón social…');
       try {
         const response = await fetch('/.netlify/functions/cuit-lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cuit }), signal: controller.signal });
         const data = await response.json();
         if (controller.signal.aborted) return;
         if (!response.ok) throw new Error(data.error || 'No se pudo consultar el CUIT. Completá la razón social manualmente.');
         if (data.cuit !== cuit || !data.businessName) throw new Error('La fuente no devolvió una coincidencia exacta.');
-        setLookupSource(data.source); setLookupProvider(data.provider);
         if (nameRevision.current === revision) {
           setEditingClient(current => ({ ...current, businessName: data.businessName }));
-          setLookupStatus('Razón social encontrada. Revisala antes de guardar.');
-        } else setLookupStatus('Encontrada: ' + data.businessName + '. Se conservó tu edición manual.');
-      } catch (error) {
-        if (!controller.signal.aborted) setLookupStatus(error instanceof Error ? error.message : 'No se pudo consultar. Completá la razón social manualmente.');
+        }
+      } catch {
+        // Keep the editable name when the public lookup is unavailable.
       }
     }, 600);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [editingClient.cuit, editingClient.id, lookupRequest, showDetails]);
-  const cuitError = cuitTouched ? validateCuit(editingClient.cuit) : '';
-  const openClient = (client: Client) => { setLookupRequest(0); setLookupStatus(''); setLookupSource(''); setEditingClient(structuredClone(client)); setClientError(''); setCuitTouched(false); setShowDetails(true); };
+  const cuitInvalid = Boolean(validateCuit(editingClient.cuit));
+  const showCuitInvalid = cuitInvalid && (cuitTouched || editingClient.cuit.replace(/-/g, '').length >= 11);
+  const openClient = (client: Client) => { setLookupRequest(0); setEditingClient(structuredClone(client)); setClientError(''); setCuitTouched(false); setShowDetails(true); };
   const displayDate = (date?: string) => date && Number.isFinite(Date.parse(date)) ? new Date(date).toLocaleDateString('es-AR') : 'Sin registrar';
 
   const updateContact = (key: 'commercialContact' | 'operationalContact' | 'purchasingContact', field: keyof ContactInfo, value: string) => {
@@ -1168,7 +1162,7 @@ export function ClientsModule({
 
   const saveEditingClient = () => {
     setCuitTouched(true);
-    if (validateCuit(editingClient.cuit)) { setClientError('Revisá el CUIT antes de guardar el cliente.'); return; }
+    if (cuitInvalid) return;
     if (!editingClient.alias.trim() || !editingClient.businessName.trim()) { setClientError('Completá el nombre de fantasía y la razón social.'); return; }
     onSaveClient({ ...editingClient, cuit: formatCuit(editingClient.cuit), alias: editingClient.alias.trim(), businessName: editingClient.businessName.trim(), active: editingClient.active !== false });
     setShowDetails(false);
@@ -1199,7 +1193,7 @@ export function ClientsModule({
               <p className="eyebrow">Ficha</p>
               <h2>Datos del cliente</h2>
             </div>
-            <button className="primary-button" onClick={saveEditingClient} type="button">
+            <button className="primary-button" onClick={saveEditingClient} disabled={cuitInvalid} type="button">
               <Save size={18} />
               Guardar cliente
             </button>
@@ -1216,10 +1210,7 @@ export function ClientsModule({
           <div className="form-grid">
             <label>
               CUIT
-              <input inputMode="numeric" maxLength={13} placeholder="XX-XXXXXXXX-X" aria-invalid={Boolean(cuitError)} aria-describedby={cuitError ? 'client-cuit-help' : undefined} value={editingClient.cuit} onChange={(event) => { setEditingClient({ ...editingClient, cuit: event.target.value }); setClientError(''); setLookupRequest(current => current + 1); }} onBlur={() => { setCuitTouched(true); setEditingClient(current => ({ ...current, cuit: formatCuit(current.cuit) })); }} />
-              {cuitError && <small id="client-cuit-help" role="alert">{cuitError}</small>}
-              <small role="status">{lookupStatus}</small>
-              {lookupSource && <small><a href={lookupSource} target="_blank" rel="noreferrer">Ver fuente: {lookupProvider}</a> · Consulta pública, no es una constancia de ARCA.</small>}
+              <input inputMode="numeric" maxLength={13} placeholder="XX-XXXXXXXX-X" aria-invalid={showCuitInvalid} value={editingClient.cuit} onChange={(event) => { setEditingClient({ ...editingClient, cuit: event.target.value }); setClientError(''); setLookupRequest(current => current + 1); }} onBlur={() => { setCuitTouched(true); setEditingClient(current => ({ ...current, cuit: formatCuit(current.cuit) })); }} />
             </label>
             <label>
               Razón social
