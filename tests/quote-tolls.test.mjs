@@ -96,11 +96,11 @@ test('major-road preference selects matching geometry and distance, bounds detou
     path: [{lat:()=>marker,lng:()=>-58},{lat:()=>marker+.01,lng:()=>-58}]
   }] }] });
   const street = route(10000, 'Calle Belgrano', -34);
-  const avenue = route(11000, 'Av. del Libertador', -35);
-  const motorway = route(12000, 'Autopista del Sol / RN9', -36);
+  const avenue = route(10500, 'Av. del Libertador', -35);
+  const motorway = route(11000, 'Autopista del Sol / RN9', -36);
   const detour = route(14000, 'RN 9', -37);
   for (const [routes, km, lat] of [
-    [[street, motorway, avenue], 12, -36],
+    [[street, motorway, avenue], 11, -36],
     [[street, detour, avenue], 11, -35],
     [[route(10000,'Calle Belgrano</b><div>hacia <b>RN 9',-34), avenue],11,-35],
     [[route(10000,'Calle A',-34),route(11000,'Calle B',-35)],10,-34]
@@ -112,6 +112,18 @@ test('major-road preference selects matching geometry and distance, bounds detou
       assert.equal(selected.path[0][0],lat);
     } finally { delete globalThis.window; }
   }
+});
+
+test('bold turn directions do not hide a following motorway name and toward signs do not classify local streets', async () => {
+  const leg = (instructions, lat, distance) => ({distance:{value:distance},steps:[{instructions,distance:{value:distance},path:[{lat:()=>lat,lng:()=>-58},{lat:()=>lat+.01,lng:()=>-58}]}]});
+  const local = leg('Gira a la <b>derecha</b> por <b>Calle A</b> hacia <b>RN 9</b>',-35,10000);
+  const highway = leg('Mantente a la <b>derecha</b> para continuar por <b>RN 9</b>',-34,10500);
+  globalThis.window={google:{maps:{DirectionsService:class{route(input,callback){callback({routes:[{summary:'Calle A',legs:[local]},{summary:'RN 9',legs:[highway]}]},'OK');}}}}};
+  try {
+    const result=await calculateGoogleRoute(['A','B']);
+    assert.equal(result.path[0][0],-34);
+    assert.deepEqual(result.summaries,['RN 9']);
+  } finally { delete globalThis.window; }
 });
 
 test('missing geometry in any leg prevents toll detection across invented connectors', async () => {
