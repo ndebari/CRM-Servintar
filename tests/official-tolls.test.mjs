@@ -55,3 +55,21 @@ test('recognizes quoted station names from the OSM route catalog without fuzzy m
  assert.equal(findPublication({ ...toll, name: 'Gutiérrez otra estación' }, 'tag').source, undefined);
  assert.equal(findPublication({ ...toll, name: '"Gutiérrez"', operator: 'other' }, 'tag').source, undefined);
 });
+
+test('Hudson reports every missing price selection together', async () => {
+ const incomplete = { id: 'hudson', name: 'Hudson', operator: 'aubasa' };
+ const pending = findPublication(incomplete, '');
+ assert.match(pending.reason, /forma de pago/);
+ assert.match(pending.reason, /sentido/);
+ assert.match(pending.reason, /horario/);
+ const afterPayment = findPublication(incomplete, 'tag');
+ assert.doesNotMatch(afterPayment.reason, /forma de pago/);
+ assert.match(afterPayment.reason, /sentido/);
+ assert.match(afterPayment.reason, /horario/);
+ assert.ok(findPublication({ ...incomplete, direction: 'la-plata', period: 'normal' }, 'tag').source);
+ let downloads = 0;
+ const result = await searchOfficialTariffs([incomplete], '', async () => { downloads++; throw new Error('Should not download before selections'); });
+ assert.equal(downloads, 0);
+ assert.equal(result[0].amount, null);
+ assert.match(result[0].lookupMessage, /automáticamente/);
+});
