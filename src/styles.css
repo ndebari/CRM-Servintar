@@ -665,7 +665,7 @@ h3 {
 
 .warning-check {
   grid-column: 1 / -1;
-  color: #b42318 !important;
+  color: var(--danger, #b42318) !important;
 }
 
 .quote-detail {

@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#101828" />
     <title>CRM Servintar</title>
+    <script>
+      try {
+        var preference = localStorage.getItem('servintar.theme');
+        var theme = preference === 'dark' || preference === 'light' ? preference : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#141c22' : '#f5f6f2';
+      } catch { document.documentElement.dataset.theme = 'light'; }
+    </script>
   </head>
   <body>
     <div id="root"></div>
