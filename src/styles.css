@@ -1165,3 +1165,15 @@ a { color: #125da8; text-underline-offset: 3px; }
   font-size: .88rem;
   font-weight: 600;
 }
+
+.toll-journey { margin-top: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--field); }
+.toll-journey-heading, .toll-journey-total { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.toll-journey-heading h3 { margin: 0; color: #174775; font-size: 1rem; }
+.toll-journey-heading > span { font-size: .78rem; color: var(--muted); }
+.toll-journey > .muted-copy { margin-top: 12px; }
+.toll-journey-total { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border); font-size: .85rem; }
+.toll-journey-total strong { font-size: 1.1rem; color: #174775; }
+@media (max-width: 560px) { .toll-journey { padding: 12px; } .toll-journey .toll-card { padding: 12px; } }
+
+.field-error { color: #a22a22; font-size: .8rem; line-height: 1.4; }
+.form-grid input[aria-invalid="true"] { border-color: #c54738; background: #fff3ef; }
