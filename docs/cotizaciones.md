@@ -1,19 +1,27 @@
-# Registro de cotizaciones
+# Registro compartido de cotizaciones
 
-La versión actual utiliza IndexedDB en el navegador. Conserva clientes y cotizaciones al recargar y migra servintar.quotes.v1 sin borrar la copia anterior. No sincroniza equipos, perfiles ni dominios. Borrar los datos del sitio elimina esta base local.
+El almacenamiento operativo utiliza Supabase. Clientes, cotizaciones, ABM y costos se leen de la base compartida; las escrituras no vuelven al almacenamiento local si falla la red. La pantalla de ingreso requiere una sesión de Supabase Auth y autorización del CRM.
 
-La numeración se asigna al confirmar la transacción: C-00001 a C-99999. Las revisiones usan C-00001-R-01 y siguientes, con el mismo cliente y raíz. El índice único y la transacción compartida con el contador evitan duplicados entre pestañas del mismo navegador. Una revisión no consume otro número base. Una original pasa a Recotizada al guardar su revisión; cancelar el borrador no cambia la original.
+La numeración global se confirma en crm_create_quote en una transacción que bloquea crm_numbering. C-00001 a C-99999; versiones C-00001-R-01 y siguientes. La original pasa a Recotizada al guardar su revisión. Los reintentos de una creación usan el mismo UUID.
 
-El envío es un registro manual: no envía correos. Guarda una copia del contacto elegido y la fecha. Solamente una cotización enviada puede aprobarse o recotizarse. Las aprobadas aparecen en Lista de precios sin borrarse del historial.
+Registrar como enviada guarda un contacto y fecha; no envía correos comerciales. Una cotización enviada puede aprobarse o recotizarse. Lista de precios consulta las aprobadas sin borrar el historial.
 
-## Base compartida pendiente
+## Datos locales anteriores
 
-supabase/quote-register.sql prepara tablas y acceso limitado a miembros autenticados. No fue ejecutado y el frontend no usa esas tablas todavía. Antes de habilitarlo se requiere acceso de administración al proyecto, autenticación de usuarios, una función transaccional para numerar y guardar, y migración validada de los registros locales. No habilitar acceso anónimo a estos registros comerciales.
+ABM → Importar datos guardados en este navegador permite revisar cantidades, descargar una copia e importar. La copia local nunca se borra. Debe usarse desde el navegador y dominio donde se cargaron esos datos. Los registros demo se excluyen. Los catálogos existentes en Supabase se conservan; los faltantes se agregan.
 
-## Verificación
+La importación preserva números y vínculos; si un número pertenece a otra cotización en Supabase, cancela todo el lote. También cancela si falta un cliente, hay CUIT inválidos o un estado enviado/aprobado carece de su destinatario histórico. No inventa destinatarios. Un mismo lote puede reintentarse sin duplicarse. Los IDs antiguos se convierten de forma determinista a UUID y se conserva legacyId.
 
-Pruebas unitarias: tests/quote-lifecycle.test.mjs. Verificación en navegador sobre un origen local aislado: guardados concurrentes con números distintos, rechazo de aprobación sin envío, selección de contacto, revisión vinculada, aprobación, recuperación de registros al recargar y filtro de Lista de precios.
+## Instalación
 
-## Actualización de infraestructura
+1. supabase/crm-complete.sql: esquema y RPC comerciales.
+2. supabase/crm-cloud-activation.sql: acceso con correo autorizado y confirmado, importación atómica.
+3. Agregar en crm_allowed_emails únicamente los correos autorizados por el administrador.
+4. Publicar la aplicación y crear/confirmar cada usuario con su contraseña propia.
+5. supabase/crm-secure-costs.sql: retira los accesos anónimos de la versión anterior de costos.
 
-El esquema completo fue creado en el proyecto Supabase CRM Servintar con supabase/crm-complete.sql. La app aún usa IndexedDB; falta activar el adaptador remoto y Supabase Auth. Ver supabase/README.md para el contrato de conexión. El antiguo quote-register.sql queda como referencia histórica.
+No se deben compartir contraseñas ni usar claves service_role en el frontend. Para revocar un acceso, el administrador elimina su correo de crm_allowed_emails y su UUID de crm_members.
+
+## Pruebas
+
+Los tests de quote-lifecycle, cloud-repository y quote-tolls verifican reglas y adaptador. scripts/test-supabase.mjs y scripts/test-cloud-activation.mjs prueban SQL en una instancia PostgreSQL aislada con PGlite, incluyendo permisos, reintentos, conflictos y rollback.

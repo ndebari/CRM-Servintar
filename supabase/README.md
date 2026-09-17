@@ -47,7 +47,7 @@ No poner claves service_role ni contraseñas de base de datos en variables VITE_
 
 ## Activación y datos locales
 
-Crear estas tablas no cambia automáticamente el almacenamiento de la app. La versión publicada mantiene IndexedDB. Para activar Supabase faltan el inicio de sesión del CRM, el adaptador de las RPC y la importación explícita de datos locales. No borrar IndexedDB ni localStorage antes de verificar esa importación. No importar catálogos o registros demo sobre datos productivos.
+La aplicación ya incluye el adaptador remoto y la pantalla de acceso. Aplicar crm-cloud-activation.sql antes de publicar esa versión. Configurar el Site URL de Authentication en https://crmsvt.netlify.app/. Autorizar los correos en crm_allowed_emails; crm_claim_access incorpora únicamente usuarios con ese correo confirmado. Después de publicar, aplicar crm-secure-costs.sql para retirar los permisos anónimos antiguos. La importación se ejecuta explícitamente desde ABM y cancela el lote completo ante conflictos. No borrar IndexedDB ni localStorage antes de verificar esa importación. No importar catálogos o registros demo sobre datos productivos.
 
 ## Pruebas
 

@@ -1,3 +1,4 @@
+import { CrmAccess } from './CrmAccess';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -19,6 +20,6 @@ void clearLegacyPwaCache();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <CrmAccess><App /></CrmAccess>
   </React.StrictMode>
 );

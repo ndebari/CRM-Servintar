@@ -1,8 +1,9 @@
+import { ImportLocalData } from './ImportLocalData';
 import { quoteNumber } from './quoteLifecycle';
 import { QuotesModule } from './QuotesModule';
-import { initializeDatabase, readDatabase, storeQuote, changeQuote, storeClient, removeClient, storeClients } from './quoteDatabase';
+import { readDatabase, storeQuote, changeQuote, storeClient, removeClient, saveRemoteTypes, saveRemoteAdditionals, crmRpc } from './quoteDatabase';
 import { AbmModule } from './AbmModule';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   Archive,
   BadgeDollarSign,
@@ -23,9 +24,6 @@ import {
   ClientsModule,
   CotizadorHome,
   createQuoteDraft,
-  initialAdditionals,
-  initialClients,
-  initialClientTypes,
   type AdditionalDefinition,
   type Client,
   type PreparedQuote,
@@ -140,45 +138,31 @@ function App() {
   const [snapshots, setSnapshots] = useState<CostSnapshot[]>([]);
   const [isCostEditing, setIsCostEditing] = useState(true);
   const [saveStatus, setSaveStatus] = useState('Sin guardar en esta sesion');
-  const [clients, setClients] = useState<Client[]>(initialClients);
-  const [clientTypes, setClientTypes] = useState<string[]>(() => {
-    try { const saved = JSON.parse(localStorage.getItem('servintar.clientTypes.v1') ?? 'null'); if (Array.isArray(saved) && saved.every(item => typeof item === 'string' && item.trim())) return saved; } catch { /* Use initial types when storage is unavailable. */ }
-    return initialClientTypes;
-  });
-  const saveClientTypes = (types: string[], rename?: { from: string; to: string }) => {
-    try { localStorage.setItem('servintar.clientTypes.v1', JSON.stringify(types)); } catch { return false; }
-    setClientTypes(types);
-    if (rename) {const updated=clients.map(client=>client.type===rename.from?{...client,type:rename.to}:client);void storeClients(updated).then(refreshDatabase).catch(()=>setDatabaseError('No se pudo actualizar el tipo en los clientes.'));}
-    return true;
-  };
-  const [additionalCatalog, setAdditionalCatalog] = useState<AdditionalDefinition[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('servintar.additionalCatalog.v1') ?? 'null');
-      if (Array.isArray(saved) && saved.every(item => item && typeof item.id === 'string' && typeof item.name === 'string' && typeof item.description === 'string' && ['fixed','percent'].includes(item.kind) && (item.amount === undefined || (typeof item.amount === 'number' && Number.isFinite(item.amount) && item.amount >= 0)))) return saved;
-    } catch { /* Fall back to the initial catalog if storage is unavailable. */ }
-    return initialAdditionals;
-  });
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientTypes, setClientTypes] = useState<string[]>([]);
+  const [additionalCatalog, setAdditionalCatalog] = useState<AdditionalDefinition[]>([]);
   const [additionalStatus, setAdditionalStatus] = useState('');
-  const saveAdditionalCatalog = (items: AdditionalDefinition[]) => {
-    try { localStorage.setItem('servintar.additionalCatalog.v1', JSON.stringify(items)); }
-    catch { setAdditionalStatus('No se pudo guardar el catálogo en este navegador. No se aplicaron los cambios.'); return false; }
-    setAdditionalCatalog(items); setAdditionalStatus('Catálogo guardado.'); return true;
+  const saveClientTypes = async (types:string[],rename?:{from:string;to:string}) => {
+    try {await saveRemoteTypes(types,clientTypes,rename);await refreshDatabase();return true;}
+    catch(error) {setDatabaseError(error instanceof Error?error.message:'No se pudo guardar el catálogo.');return false;}
   };
+  const saveAdditionalCatalog = async (items:AdditionalDefinition[]) => {
+    try {await saveRemoteAdditionals(items,additionalCatalog);await refreshDatabase();setAdditionalStatus('Catálogo guardado en Supabase.');return true;}
+    catch(error) {setAdditionalStatus(error instanceof Error?error.message:'No se pudo guardar el catálogo.');return false;}
+  };
+  const pendingSave = useRef<{key:string;quote:PreparedQuote} | null>(null);
   const [quotes, setQuotes] = useState<PreparedQuote[]>([]);
   const [databaseReady, setDatabaseReady] = useState(false);
   const [databaseError, setDatabaseError] = useState('');
   const [revisionParent, setRevisionParent] = useState<PreparedQuote | null>(null);
   const [quoteFocus, setQuoteFocus] = useState('');
-  const [quoteDraft, setQuoteDraft] = useState<TransportQuoteDraft>(() => createQuoteDraft(initialClients[0]?.id ?? ''));
-  const refreshDatabase = async () => { const data=await readDatabase();setQuotes(data.quotes);setClients(data.clients); };
+  const [quoteDraft, setQuoteDraft] = useState<TransportQuoteDraft>(() => createQuoteDraft(''));
+  const refreshDatabase = async () => { const data=await readDatabase();setQuotes(data.quotes);setClients(data.clients);setClientTypes(data.clientTypes);setAdditionalCatalog(data.additionals);setDatabaseError('');setDatabaseReady(true); };
   useEffect(() => {
     const initialize = async () => {
       try {
-        const saved=JSON.parse(localStorage.getItem('servintar.quotes.v1') || '[]');
-        const savedClients=JSON.parse(localStorage.getItem('servintar.clients.v1') || 'null');
-        await initializeDatabase(Array.isArray(saved)?saved:[],Array.isArray(savedClients)?savedClients:initialClients);
         await refreshDatabase();setDatabaseReady(true);
-      } catch {setDatabaseError('No se pudo abrir la base de datos. Los cambios no se guardarán hasta restablecer el almacenamiento.');}
+      } catch {setDatabaseError('No se pudo conectar a Supabase. No se guardarán cambios hasta recuperar la conexión.');}
     };
     void initialize();
     const sync=()=>{void refreshDatabase().catch(()=>setDatabaseError('No se pudo actualizar la base de datos.'));};
@@ -334,10 +318,11 @@ function App() {
     if(!databaseReady) return 'La base de datos todavía no está disponible.';
     const error=getQuoteStageErrors(quoteDraft,clients).find(Boolean);if(error)return error;
     if(revisionParent && quoteDraft.clientId!==revisionParent.clientId) return 'La recotización debe conservar el cliente original.';
-    const prepared=buildPreparedQuote(quoteDraft,clients,totals);
-    const saved=await storeQuote(prepared,revisionParent?.id);
+    const saveKey=JSON.stringify({quoteDraft,parent:revisionParent?.id,totals});
+    if(!pendingSave.current || pendingSave.current.key!==saveKey)pendingSave.current={key:saveKey,quote:buildPreparedQuote(quoteDraft,clients,totals)};
+    const saved=await storeQuote(pendingSave.current.quote,revisionParent?.id);
     await refreshDatabase();setQuoteFocus(saved.id);setRevisionParent(null);
-    setQuoteDraft(createQuoteDraft(quoteDraft.clientId));setView('cotizaciones');
+    setQuoteDraft(createQuoteDraft(quoteDraft.clientId));pendingSave.current=null;setView('cotizaciones');
     return undefined;
   };
   const updateQuote = async (id:string, action:'send'|'approve', contactKey?:string) => {
@@ -353,86 +338,10 @@ function App() {
   };
 
   const saveMonthlySnapshot = async () => {
-    const snapshot: CostSnapshot = {
-      id: `${year}-${month}-${Date.now()}`,
-      month,
-      year,
-      savedAt: new Date().toISOString(),
-      lines: costLines.map((line) => ({ ...line, allocation: { ...line.allocation } }))
-    };
-
-    setSnapshots((currentSnapshots) => [
-      snapshot,
-      ...currentSnapshots.filter((item) => !(item.month === month && item.year === year))
-    ]);
-    setLookupMonth(month);
-    setLookupYear(year);
-    setIsCostEditing(false);
-
-    if (!supabase) {
-      setSaveStatus('Guardado local. Supabase no esta configurado.');
-      return;
-    }
-
-    const { error: categoryError } = await supabase.from('cost_categories').upsert(
-      costLines.map((line, index) => ({
-        id: line.id,
-        name: line.name,
-        sort_order: (index + 1) * 10
-      })),
-      { onConflict: 'id' }
-    );
-
-    if (categoryError) {
-      setSaveStatus('No se pudieron actualizar los rubros en Supabase.');
-      return;
-    }
-
-    const { data: structure, error: structureError } = await supabase
-      .from('monthly_cost_structures')
-      .upsert(
-        {
-          month: months.indexOf(month) + 1,
-          year: Number(year),
-          saved_at: new Date().toISOString()
-        },
-        { onConflict: 'month,year' }
-      )
-      .select('id')
-      .single();
-
-    if (structureError || !structure) {
-      setSaveStatus('No se pudo guardar en Supabase. Revisar tablas y politicas.');
-      return;
-    }
-
-    const { error: deleteError } = await supabase.from('monthly_cost_items').delete().eq('structure_id', structure.id);
-
-    if (deleteError) {
-      setSaveStatus('No se pudo reemplazar el detalle mensual en Supabase.');
-      return;
-    }
-
-    const { error: itemError } = await supabase.from('monthly_cost_items').insert(
-      costLines.map((line, index) => ({
-        structure_id: structure.id,
-        category_id: line.id,
-        day_source_value: line.daySourceValue,
-        day_fadeeac_index: line.dayFadeeacIndex,
-        day_updated_value: getUpdatedValue(line, 'day'),
-        km_source_value: line.kmSourceValue,
-        km_fadeeac_index: line.kmFadeeacIndex,
-        km_updated_value: getUpdatedValue(line, 'km'),
-        source_value: line.kmSourceValue || line.daySourceValue,
-        fadeeac_index: line.kmFadeeacIndex || line.dayFadeeacIndex,
-        updated_value: getUpdatedValue(line, 'km') || getUpdatedValue(line, 'day'),
-        applies_per_day: line.allocation.perDay,
-        applies_per_km: line.allocation.perKm,
-        sort_order: (index + 1) * 10
-      }))
-    );
-
-    setSaveStatus(itemError ? 'No se pudieron guardar los items en Supabase.' : 'Guardado en Supabase correctamente.');
+    try {
+      await crmRpc('crm_save_costs',{p_month:months.indexOf(month)+1,p_year:Number(year),p_lines:costLines});
+      await loadMonthlyCostStructures();setLookupMonth(month);setLookupYear(year);setIsCostEditing(false);setSaveStatus('Guardado en Supabase correctamente.');
+    } catch(error) {setSaveStatus(error instanceof Error?error.message:'No se pudo guardar en Supabase.');}
   };
 
   return (
@@ -479,9 +388,9 @@ function App() {
       </aside>
 
       <section className="workspace" key={view}>
-        {databaseError && <p role="alert">{databaseError}</p>}
+        {databaseError && <p role="alert">{databaseError} <button className="ghost-button" onClick={()=>void refreshDatabase().catch(()=>setDatabaseError('No se pudo conectar a Supabase.'))}>Reintentar</button></p>}
         {!databaseReady && !databaseError && <p>Cargando registros…</p>}
-        {(view==='cotizaciones' || view==='precios') && <p className="muted-copy">Registros guardados en este navegador.</p>}
+        {(view==='cotizaciones' || view==='precios') && <p className="muted-copy">Registros compartidos en Supabase.</p>}
         {view==='cotizador' && revisionParent && <section className="panel"><strong>Recotización {quoteNumber(revisionParent.sequence!, Math.max(0,...quotes.filter(q=>(q.rootId || q.id)===(revisionParent.rootId || revisionParent.id)).map(q=>q.revision || 0))+1)}</strong><p>Origen: {revisionParent.number}. La versión se confirma al guardar.</p><button type="button" className="ghost-button" onClick={()=>{setRevisionParent(null);setQuoteDraft(createQuoteDraft(quoteDraft.clientId));}}>Cancelar recotización</button></section>}
         {view === 'cotizador' && (
           <CotizadorHome
@@ -494,7 +403,7 @@ function App() {
             totals={totals}
           />
         )}
-        {view === 'abm' && <AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} />}
+        {view === 'abm' && <><ImportLocalData onImported={refreshDatabase} /><AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} /></>}
         {view === 'clientes' && (
           <ClientsModule
             clientTypes={clientTypes}

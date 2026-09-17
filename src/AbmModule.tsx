@@ -4,22 +4,22 @@ import type { AdditionalDefinition, Client } from './crmFeature';
 
 export function AbmModule({ additionalCatalog, onAdditionalsChange, additionalStatus, clientTypes, clients, onClientTypesChange }: {
   additionalCatalog: AdditionalDefinition[];
-  onAdditionalsChange: (items: AdditionalDefinition[]) => boolean;
+  onAdditionalsChange: (items: AdditionalDefinition[]) => Promise<boolean>;
   additionalStatus: string;
   clientTypes: string[];
   clients: Client[];
-  onClientTypesChange: (types: string[], rename?: { from: string; to: string }) => boolean;
+  onClientTypesChange: (types: string[], rename?: { from: string; to: string }) => Promise<boolean>;
 }) {
   const [section, setSection] = useState<'additionals' | 'types'>('additionals');
   const [name, setName] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [removed, setRemoved] = useState<string | null>(null);
-  const save = (event: React.FormEvent) => {
+  const save = async (event: React.FormEvent) => {
     event.preventDefault(); const value = name.trim();
     if (!value) { setMessage('Completá el nombre del tipo de cliente.'); return; }
     if (clientTypes.some(type => type !== editing && type.toLocaleLowerCase('es') === value.toLocaleLowerCase('es'))) { setMessage('Ya existe un tipo con ese nombre.'); return; }
-    if (!onClientTypesChange(editing === null ? [...clientTypes, value] : clientTypes.map(type => type === editing ? value : type), editing === null ? undefined : { from: editing, to: value })) { setMessage('No se pudo guardar en este navegador.'); return; }
+    if (!await onClientTypesChange(editing === null ? [...clientTypes, value] : clientTypes.map(type => type === editing ? value : type), editing === null ? undefined : { from: editing, to: value })) { setMessage('No se pudo guardar en Supabase.'); return; }
     setName(''); setEditing(null); setMessage('Tipo de cliente guardado.');
   };
   return <>
@@ -34,16 +34,16 @@ export function AbmModule({ additionalCatalog, onAdditionalsChange, additionalSt
           <button className="primary-button" type="submit">{editing === null ? 'Crear tipo' : 'Guardar cambios'}</button>
           {editing !== null && <button className="ghost-button" type="button" onClick={() => { setName(''); setEditing(null); setMessage(''); }}>Cancelar</button>}
         </form><p role="status">{message}</p>
-        <p className="muted-copy">Los tipos se guardan en este navegador. Al renombrar un tipo se actualizan los clientes cargados que lo utilizan.</p>
+        <p className="muted-copy">Los tipos se guardan en Supabase. Al renombrar un tipo se actualizan los clientes cargados que lo utilizan.</p>
       </section>
       <section className="panel"><h2>Tipos de cliente</h2>
-        {removed && <p>Se quitó {removed}. <button className="ghost-button" onClick={() => { if (clientTypes.some(type => type.toLocaleLowerCase('es') === removed.toLocaleLowerCase('es'))) { setMessage('Ya existe un tipo con ese nombre.'); return; } if (onClientTypesChange([...clientTypes, removed])) setRemoved(null); }}>Deshacer baja</button></p>}
+        {removed && <p>Se quitó {removed}. <button className="ghost-button" onClick={async () => { if (clientTypes.some(type => type.toLocaleLowerCase('es') === removed.toLocaleLowerCase('es'))) { setMessage('Ya existe un tipo con ese nombre.'); return; } if (await onClientTypesChange([...clientTypes, removed])) setRemoved(null); }}>Deshacer baja</button></p>}
         {!clientTypes.length && <p>Todavía no hay tipos de cliente.</p>}
         <div className="entity-list">{clientTypes.map(type => {
           const used = clients.some(client => client.type === type);
           return <div className="entity-row" key={type}><div><strong>{type}</strong>{used && <span>En uso por clientes</span>}</div>
             <button className="ghost-button" aria-label={'Editar tipo ' + type} onClick={() => { setEditing(type); setName(type); setMessage(''); }}>Editar</button>
-            <button className="ghost-button" disabled={used} title={used ? 'Asigná otro tipo a esos clientes antes de darlo de baja.' : undefined} aria-label={'Dar de baja tipo ' + type} onClick={() => { if (onClientTypesChange(clientTypes.filter(item => item !== type))) { setRemoved(type); if (editing === type) {setEditing(null);setName('');} setMessage('Tipo dado de baja.'); } }}>Dar de baja</button>
+            <button className="ghost-button" disabled={used} title={used ? 'Asigná otro tipo a esos clientes antes de darlo de baja.' : undefined} aria-label={'Dar de baja tipo ' + type} onClick={async () => { if (await onClientTypesChange(clientTypes.filter(item => item !== type))) { setRemoved(type); if (editing === type) {setEditing(null);setName('');} setMessage('Tipo dado de baja.'); } }}>Dar de baja</button>
           </div>;
         })}</div>
       </section>
