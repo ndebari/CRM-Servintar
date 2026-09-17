@@ -601,7 +601,7 @@ export function CotizadorHome({
         if (!active || JSON.stringify([getRouteStops(latestDraft.current), latestDraft.current.isRoundTrip, latestDraft.current.returnFromStop]) !== distanceKey) return;
         latestDraft.current = { ...latestDraft.current, tolls: mergeRouteTolls(result.tolls, latestDraft.current.tolls), tollListStatus: 'pending', tollRouteKey: getTruckRouteKey(latestDraft.current) };
         latestOnChange.current(latestDraft.current);
-        setRouteStatus((result.returnStartLeg < route.legs.length ? 'La vuelta comienza en: ' + route.legs[result.returnStartLeg].origin + '. ' : 'Sin tramos de vuelta. ') + result.tolls.length + ' paso(s) de peaje estimado(s) sobre la ruta de Google. Revisá nombres, localidades y posibles faltantes antes de confirmar. Mapa: OpenStreetMap, ' + result.catalogDate + '.');
+        setRouteStatus('');
       } catch (error) {
         if (active) {
           if (googleRoute.current?.key !== distanceKey) setDistanceStatus('No se pudo calcular con Google. Podés cargar los kilómetros manualmente.');
