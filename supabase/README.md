@@ -52,3 +52,9 @@ La aplicación ya incluye el adaptador remoto y la pantalla de acceso. Aplicar c
 ## Pruebas
 
 verify-crm.sql verifica objetos, funciones y valores iniciales sin mostrar datos comerciales. scripts/test-supabase.mjs ejecuta pruebas sobre PostgreSQL mediante PGlite, fuera del proyecto productivo. Requiere @electric-sql/pglite disponible, o CRM_PGLITE_MODULE apuntando a su módulo.
+
+Proveedores y precios fleteros: ejecutar `crm-suppliers.sql` después del esquema base. Proveedores usa una ficha separada de clientes con CUIT validado, nombre de fantasía, razón social, tipo, estado y contactos comercial/operativo. Elegir tipo Fletero para incluirlo en el selector de tarifas. Una baja conserva el historial.
+
+Precios fleteros guarda versiones inmutables por proveedor con fecha de vigencia, moneda ARS/USD, origen, destino, servicio, unidad, importe y observaciones. Se consulta por mes; si no hubo actualización ese mes se muestra la última lista vigente. Se pueden consultar todas las versiones creadas para un mismo mes. Actualizar crea una versión nueva, nunca sobrescribe listas anteriores. La fecha no puede ser futura ni anterior a la última lista; la primera carga admite una fecha histórica. Guardar valida concurrencia y permite reintentos con el mismo UUID. La lectura y escritura requieren pertenecer al CRM; el frontend no guarda tarifas localmente.
+
+Validación: `scripts/test-supplier-prices.mjs` con PGlite, `tests/supplier-prices.test.mjs`, TypeScript y build. La prueba visual aislada verificó actualización y recuperación de los importes del mes anterior sin crear datos de prueba en producción.

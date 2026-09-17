@@ -1125,8 +1125,10 @@ export function ClientsModule({
   clients,
   clientTypes,
   onSaveClient,
-  onDeleteClient
+  onDeleteClient,
+  supplierMode = false
 }: {
+  supplierMode?: boolean;
   clients: Client[];
   clientTypes: string[];
   onSaveClient: (client: Client) => Promise<void>;
@@ -1178,7 +1180,7 @@ export function ClientsModule({
     setCuitTouched(true);
     if (cuitInvalid) return;
     if (!editingClient.alias.trim() || !editingClient.businessName.trim()) { setClientError('Completá el nombre de fantasía y la razón social.'); return; }
-    try { await onSaveClient({ ...editingClient, cuit: formatCuit(editingClient.cuit), alias: editingClient.alias.trim(), businessName: editingClient.businessName.trim(), active: editingClient.active !== false }); } catch(error) {setClientError(error instanceof Error?error.message:'No se pudo guardar el cliente.');return;}
+    try { await onSaveClient({ ...editingClient, cuit: formatCuit(editingClient.cuit), alias: editingClient.alias.trim(), businessName: editingClient.businessName.trim(), active: editingClient.active !== false }); } catch(error) {setClientError(error instanceof Error?error.message:supplierMode?'No se pudo guardar el proveedor.':'No se pudo guardar el cliente.');return;}
     setShowDetails(false);
     setClientError('');
     setEditingClient(createEmptyClient(clientTypes[0] ?? ''));
@@ -1189,11 +1191,11 @@ export function ClientsModule({
       <header className="topbar">
         <div>
           <p className="eyebrow">Modulo</p>
-          <h1>Clientes</h1>
+          <h1>{supplierMode?'Proveedores':'Clientes'}</h1>
         </div>
         <button className="primary-button" onClick={() => openClient(createEmptyClient(clientTypes[0] ?? ''))} type="button">
           <Building2 size={18} />
-          Nuevo cliente
+          {supplierMode?'Nuevo proveedor':'Nuevo cliente'}
         </button>
       <SessionControls /></header>
 
@@ -1205,20 +1207,20 @@ export function ClientsModule({
           <div className="panel-header">
             <div>
               <p className="eyebrow">Ficha</p>
-              <h2>Datos del cliente</h2>
+              <h2>{supplierMode?'Datos del proveedor':'Datos del cliente'}</h2>
             </div>
             <button className="primary-button" onClick={saveEditingClient} disabled={cuitInvalid} type="button">
               <Save size={18} />
-              Guardar cliente
+              {supplierMode?'Guardar proveedor':'Guardar cliente'}
             </button>
             {clients.some(client => client.id === editingClient.id) && <button className="ghost-button danger-button" type="button" onClick={async () => {
               const client = clients.find(item => item.id === editingClient.id);
-              if (!client || !window.confirm('¿Eliminar al cliente «' + (client.alias || client.businessName) + '»? Esta acción no se puede deshacer. Las cotizaciones existentes se conservarán.')) return;
-              try {await onDeleteClient(client.id);} catch {setClientError('No se pudo eliminar el cliente.');return;}
+              if (!client || !window.confirm((supplierMode?'¿Dar de baja al proveedor «':'¿Eliminar al cliente «') + (client.alias || client.businessName) + (supplierMode?'»? Sus listas de precios históricas se conservarán.':'»? Las cotizaciones existentes se conservarán.'))) return;
+              try {await onDeleteClient(client.id);} catch {setClientError(supplierMode?'No se pudo dar de baja el proveedor.':'No se pudo eliminar el cliente.');return;}
               setShowDetails(false);
               setEditingClient(createEmptyClient(clientTypes[0] ?? ''));
               setClientError('');
-            }}><Trash2 size={18} />Eliminar cliente</button>}
+            }}><Trash2 size={18} />{supplierMode?'Dar de baja proveedor':'Eliminar cliente'}</button>}
           </div>
 
           <div className="form-grid">
@@ -1253,7 +1255,7 @@ export function ClientsModule({
           <div className="contact-grid">
             <ContactEditor title="Contacto Comercial" contact={editingClient.commercialContact} onChange={(field, value) => updateContact('commercialContact', field, value)} />
             <ContactEditor title="Contacto Operativo" contact={editingClient.operationalContact} onChange={(field, value) => updateContact('operationalContact', field, value)} />
-            <ContactEditor title="Contacto Compras" contact={editingClient.purchasingContact} onChange={(field, value) => updateContact('purchasingContact', field, value)} />
+            {!supplierMode && <ContactEditor title="Contacto Compras" contact={editingClient.purchasingContact} onChange={(field, value) => updateContact('purchasingContact', field, value)} />}
           </div>
         </div>
 
@@ -1261,8 +1263,8 @@ export function ClientsModule({
 
       </>}
       {!showDetails && <section className="panel">
-        <div className="panel-header"><h2>Clientes creados</h2></div>
-        {clients.length === 0 ? <p>Todavía no hay clientes. Usá «Nuevo cliente» para crear el primero.</p> :
+        <div className="panel-header"><h2>{supplierMode?'Proveedores creados':'Clientes creados'}</h2></div>
+        {clients.length === 0 ? <p>{supplierMode?'Todavía no hay proveedores. Usá «Nuevo proveedor» para crear el primero.':'Todavía no hay clientes. Usá «Nuevo cliente» para crear el primero.'}</p> :
           <div className="client-list-scroll"><table className="client-list-table">
             <thead><tr><th>Nombre de fantasía</th><th>Fecha de alta</th><th>Estado</th></tr></thead>
             <tbody>{clients.map(client => <tr key={client.id} onClick={() => openClient(client)}>

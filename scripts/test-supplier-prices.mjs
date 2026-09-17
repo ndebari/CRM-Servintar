@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';
+const {PGlite}=await import(process.env.CRM_PGLITE_MODULE||'@electric-sql/pglite');const db=new PGlite();
+try{
+ await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated;`);
+ await db.exec(fs.readFileSync(new URL('../supabase/crm-complete.sql',import.meta.url),'utf8'));
+ const sql=fs.readFileSync(new URL('../supabase/crm-suppliers.sql',import.meta.url),'utf8');await db.exec(sql);await db.exec(sql);
+ const uid='11111111-1111-4111-8111-111111111111';await db.exec(`insert into auth.users(id) values('${uid}');insert into public.crm_members(user_id) values('${uid}');set role authenticated;set request.jwt.claim.sub='${uid}';`);
+ const supplier={id:'supplier-a',cuit:'30707637427',alias:'Fletero A',businessName:'Empresa A',active:true,type:'Fletero',commercialContact:{fullName:'Comercial'},operationalContact:{fullName:'Operativo'},purchasingContact:{fullName:'No guardar'}};
+ await db.query('select public.crm_save_supplier($1)',[supplier]);
+ assert.equal((await db.query('select public.crm_read_suppliers() as data')).rows[0].data.suppliers[0].purchasingContact,undefined);
+ await assert.rejects(db.query('select public.crm_save_supplier($1)',[{...supplier,id:'other'}]),/duplicate/);
+ await assert.rejects(db.query('select public.crm_save_supplier($1)',[{...supplier,cuit:'30707637428'}]),/inválidos/);
+ const first={id:'22222222-2222-4222-8222-222222222222',supplierId:supplier.id,establishedOn:'2025-01-01',currency:'ARS',lines:[{id:'one',service:'Contenedor',unit:'Viaje',origin:'Berisso',destination:'Salta',amount:100}],notes:''};
+ await db.query('select public.crm_save_supplier_prices($1)',[first]);
+ await db.query('select public.crm_save_supplier_prices($1)',[first]);
+ const next={...first,id:'33333333-3333-4333-8333-333333333333',establishedOn:'2025-03-01',lines:[{...first.lines[0],amount:150}]};
+ await assert.rejects(db.query('select public.crm_save_supplier_prices($1)',[next]),/Otro usuario/);
+ await db.query('select public.crm_save_supplier_prices($1,$2)',[next,first.id]);
+ await assert.rejects(db.query('select public.crm_save_supplier_prices($1,$2)',[{...next,lines:[]},first.id]),/contenido/);
+ await assert.rejects(db.query('select public.crm_save_supplier_prices($1,$2)',[{...next,id:'44444444-4444-4444-8444-444444444444',establishedOn:'2025-02-01'},next.id]),/anterior/);
+ await assert.rejects(db.query('select public.crm_save_supplier_prices($1,$2)',[{...next,id:'44444444-4444-4444-8444-444444444444',lines:[{...next.lines[0],amount:-1}]},next.id]),/inválido/);
+ const read=(await db.query('select public.crm_read_suppliers() as data')).rows[0].data;
+ assert.equal(read.prices.length,2);assert.equal(read.prices[1].lines[0].amount,100);assert.equal(read.prices[0].lines[0].amount,150);
+ await assert.rejects(db.query('update public.crm_supplier_prices set notes=$1',['changed']),/permission denied/);
+ await db.query('select public.crm_delete_supplier($1)',[supplier.id]);
+ assert.equal((await db.query('select public.crm_read_suppliers() as data')).rows[0].data.prices.length,2);
+ await assert.rejects(db.query('select public.crm_save_supplier_prices($1,$2)',[{...next,id:'44444444-4444-4444-8444-444444444444'},next.id]),/activo/);
+ await db.exec(`set request.jwt.claim.sub='55555555-5555-4555-8555-555555555555';`);
+ await assert.rejects(db.query('select public.crm_read_suppliers()'),/no autorizado/);
+ assert.equal((await db.query('select * from public.crm_supplier_prices')).rows.length,0);
+ await db.exec('reset role;set role anon');await assert.rejects(db.query('select public.crm_read_suppliers()'),/permission denied/);
+ console.log('PASS: proveedores, CUIT, contactos, historial inmutable, reintentos, concurrencia, baja conservando tarifas y acceso protegido.');
+}finally{await db.close();}

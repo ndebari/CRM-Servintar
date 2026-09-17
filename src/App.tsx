@@ -1,3 +1,4 @@
+import { SuppliersModule } from './SuppliersModule';
 import { SessionControls } from './SessionControls';
 import { ImportLocalData } from './ImportLocalData';
 import { quoteNumber } from './quoteLifecycle';
@@ -130,7 +131,7 @@ const currency = new Intl.NumberFormat('es-AR', {
 
 function App() {
   const today = new Date();
-  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos' | 'abm' | 'precios'>('cotizador');
+  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos' | 'abm' | 'precios' | 'proveedores' | 'fleteros'>('cotizador');
   const [month] = useState(months[today.getMonth()]);
   const [year] = useState(String(today.getFullYear()));
   const [lookupMonth, setLookupMonth] = useState(months[today.getMonth()]);
@@ -379,6 +380,8 @@ function App() {
             Estructura de costos
           </button>
           <button className={`nav-item ${view === 'abm' ? 'active' : ''}`} onClick={() => setView('abm')} aria-current={view === 'abm' ? 'page' : undefined} type="button"><Plus size={18} />ABM</button>
+          <button className={`nav-item ${view==='proveedores'?'active':''}`} onClick={()=>setView('proveedores')} type="button"><Users size={18}/>Proveedores</button>
+          <button className={`nav-item ${view==='fleteros'?'active':''}`} onClick={()=>setView('fleteros')} type="button"><BadgeDollarSign size={18}/>Precios fleteros</button>
         </nav>
         </div>
         <div className="sidebar-footer">
@@ -405,6 +408,7 @@ function App() {
           />
         )}
         {view === 'abm' && <><ImportLocalData onImported={refreshDatabase} /><AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} /></>}
+        {(view==='proveedores'||view==='fleteros')&&<SuppliersModule prices={view==='fleteros'}/>}
         {view === 'clientes' && (
           <ClientsModule
             clientTypes={clientTypes}
