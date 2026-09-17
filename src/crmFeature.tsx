@@ -177,6 +177,7 @@ export type TransportQuoteDraft = {
   emptyReturnYard: string;
   destination: string;
   isRoundTrip: boolean;
+  returnFromStop?: number;
   distanceKm: number;
   requiredDays: number;
   utilityPercent: number | "";
@@ -436,7 +437,7 @@ export function mergeRouteTolls(incoming: RouteToll[], previous: RouteToll[]) {
 }
 
 export function getTruckRouteKey(draft: TransportQuoteDraft) {
-  return JSON.stringify({ policy: 'major-roads-v2-directed-legs', stops: getRouteStops(draft), isRoundTrip: draft.isRoundTrip });
+  return JSON.stringify({ policy: 'major-roads-v2-return-pivot', stops: getRouteStops(draft), isRoundTrip: draft.isRoundTrip, returnFromStop: draft.returnFromStop });
 }
 
 // Directions exposes instructions, not road classes or truck restrictions.
@@ -548,7 +549,7 @@ export function CotizadorHome({
   latestDraft.current = draft;
   latestOnChange.current = onDraftChange;
   const manualDistanceVersion = useRef(0);
-  const distanceKey = JSON.stringify([routeStops, draft.isRoundTrip]);
+  const distanceKey = JSON.stringify([routeStops, draft.isRoundTrip, draft.returnFromStop]);
   const previousDistanceKey = useRef(distanceKey);
   const [distanceStatus, setDistanceStatus] = useState('');
   const googleRoute = useRef<(Awaited<ReturnType<typeof calculateGoogleRoute>> & { key: string }) | null>(null);
@@ -575,7 +576,7 @@ export function CotizadorHome({
           await loadGooglePlaces();
           return { ...await calculateGoogleRoute(routeStops), key: distanceKey };
         })();
-        if (!active || JSON.stringify([getRouteStops(latestDraft.current), latestDraft.current.isRoundTrip]) !== distanceKey) return;
+        if (!active || JSON.stringify([getRouteStops(latestDraft.current), latestDraft.current.isRoundTrip, latestDraft.current.returnFromStop]) !== distanceKey) return;
         googleRoute.current = route;
         if (version === manualDistanceVersion.current) {
           latestDraft.current = { ...latestDraft.current, distanceKm: route.distanceKm, requiredDays: calculateRequiredDays(route.distanceKm) };
@@ -586,14 +587,15 @@ export function CotizadorHome({
         setRouteStatus('Estimando estaciones sobre el trazado de Google…');
         const response = await fetch('/.netlify/functions/route-tolls', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-          body: JSON.stringify({ legs: route.legs, isRoundTrip: latestDraft.current.isRoundTrip })
+          body: JSON.stringify({ legs: route.legs, isRoundTrip: latestDraft.current.isRoundTrip,
+            returnStartLeg: latestDraft.current.returnFromStop === -1 ? route.legs.length : latestDraft.current.returnFromStop })
         });
         const result = await response.json();
         if (!response.ok || !Array.isArray(result.tolls)) throw new Error(result.error || 'No se pudo estimar el listado de peajes.');
-        if (!active || JSON.stringify([getRouteStops(latestDraft.current), latestDraft.current.isRoundTrip]) !== distanceKey) return;
+        if (!active || JSON.stringify([getRouteStops(latestDraft.current), latestDraft.current.isRoundTrip, latestDraft.current.returnFromStop]) !== distanceKey) return;
         latestDraft.current = { ...latestDraft.current, tolls: mergeRouteTolls(result.tolls, latestDraft.current.tolls), tollListStatus: 'pending', tollRouteKey: getTruckRouteKey(latestDraft.current) };
         latestOnChange.current(latestDraft.current);
-        setRouteStatus(result.tolls.length + ' paso(s) de peaje estimado(s) sobre la ruta de Google. Revisá nombres, localidades y posibles faltantes antes de confirmar. Mapa: OpenStreetMap, ' + result.catalogDate + '.');
+        setRouteStatus((result.returnStartLeg < route.legs.length ? 'La vuelta comienza en: ' + route.legs[result.returnStartLeg].origin + '. ' : 'Sin tramos de vuelta. ') + result.tolls.length + ' paso(s) de peaje estimado(s) sobre la ruta de Google. Revisá nombres, localidades y posibles faltantes antes de confirmar. Mapa: OpenStreetMap, ' + result.catalogDate + '.');
       } catch (error) {
         if (active) {
           if (googleRoute.current?.key !== distanceKey) setDistanceStatus('No se pudo calcular con Google. Podés cargar los kilómetros manualmente.');
@@ -656,7 +658,8 @@ export function CotizadorHome({
   }, [officialLookupKey]);
 
   const updateDraft = <K extends keyof TransportQuoteDraft>(field: K, value: TransportQuoteDraft[K]) => {
-    onDraftChange({ ...draft, [field]: value });
+    const routeFields = ['transportKind','base','origin','destination','emptyPickup','consolidationDestination','deliveryPort','fullPickupPort','deconsolidationDestination','emptyReturnYard','isRoundTrip'];
+    onDraftChange({ ...draft, ...(routeFields.includes(field) ? {returnFromStop: undefined} : {}), [field]: value });
   };
 
   const addAdditional = (id: string) => {
@@ -865,6 +868,11 @@ export function CotizadorHome({
               <Truck size={20} />
             </div>
             <p className="muted-copy">Tractor de 3 ejes + araña de 3 ejes · 6 ejes en total. Una fila por cada paso de peaje, incluida la vuelta.</p>
+            {routeStops.length > 2 && <label>Inicio de la vuelta<select aria-label="Inicio de la vuelta" value={draft.returnFromStop ?? ''} onChange={event => updateDraft('returnFromStop', event.target.value === '' ? undefined : Number(event.target.value))}>
+              <option value="">Automático: desde la parada más alejada del origen</option>
+              {routeStops.slice(1,-1).map((stop,index) => <option key={index} value={index+1}>Desde parada {index+1}: {stop || 'Sin completar'}</option>)}
+              <option value="-1">Todo el recorrido es de ida</option>
+            </select></label>}
             {routeStatus && <p className="muted-copy route-status" role="status">{routeStatus}</p>}
             {draft.tolls.length === 0 && <p className="muted-copy">{draft.tollListStatus === 'pending' ? 'Todavía no se identificaron las estaciones del recorrido. Se detectan automáticamente al completar el recorrido.' : 'Recorrido confirmado sin peajes.'}</p>}
             <p className="muted-copy"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Estaciones: © OpenStreetMap contributors (ODbL)</a>. Detección aproximada, editable.</p>

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateCrossings, estimateJourneyCrossings, estimateLegCrossings } from '../netlify/lib/route-stations.mjs';
+import { estimateCrossings, estimateJourneyCrossings, estimateLegCrossings, inferReturnStartLeg } from '../netlify/lib/route-stations.mjs';
 import { handler } from '../netlify/functions/route-tolls.mjs';
 import referenceRoute from './fixtures/illia-zarate.json' with { type: 'json' };
 import stationDetails from '../netlify/lib/toll-station-details.json' with { type: 'json' };
@@ -62,19 +62,56 @@ test('individual legs retain crossing sense, visit order and return attribution'
    {origin:'Retiro',destination:'Puerto',path:[[-33.98,-58],[-34.02,-58]]},
    {origin:'Puerto',destination:'Base',path:[[-34.02,-58],[-33.98,-58]]}
  ];
- const rows=estimateLegCrossings(legs,true,stations);
+ const rows=estimateLegCrossings(legs,true,stations,2);
  assert.deepEqual(rows.map(t=>[t.journey,t.legOrigin,t.legDestination,t.travelSense]),[
    ['outbound','Base','Retiro','Hacia el norte (estimado)'],
    ['outbound','Retiro','Puerto','Hacia el sur (estimado)'],
    ['return','Puerto','Base','Hacia el norte (estimado)']
  ]);
  assert.equal(new Set(rows.map(t=>t.id)).size,3);
- assert.ok(estimateLegCrossings(legs,false,stations).every(t=>t.journey==='outbound'));
+ assert.ok(estimateLegCrossings(legs,false,stations,legs.length).every(t=>t.journey==='outbound'));
  // Two independently snapped stop locations must not create an invented crossing.
  assert.equal(estimateLegCrossings([
    {origin:'A',destination:'B',path:[[-34.02,-58],[-34.01,-58]]},
    {origin:'B',destination:'C',path:[[-33.99,-58],[-33.98,-58]]}
  ],false,stations).length,0);
+});
+
+test('CABA–Zárate–TRP–base return starts in Zárate, including the port stop', async () => {
+ const outward=referenceRoute.path.slice(0,referenceRoute.returnStartIndex);
+ const homeward=referenceRoute.path.slice(referenceRoute.returnStartIndex);
+ const base=[-34.635,-58.365];
+ const legs=[
+   {origin:'Base Lavaisse',destination:'TRP',path:[base,outward[0]]},
+   {origin:'TRP',destination:'Zárate',path:outward},
+   {origin:'Zárate',destination:'TRP',path:homeward},
+   {origin:'TRP',destination:'Base Lavaisse',path:[homeward.at(-1),base]}
+ ];
+ assert.equal(inferReturnStartLeg(legs),2);
+ const response=await handler({httpMethod:'POST',body:JSON.stringify({legs,isRoundTrip:true})});
+ const result=JSON.parse(response.body);
+ assert.equal(response.statusCode,200);
+ assert.equal(result.returnStartLeg,2);
+ assert.deepEqual(result.tolls.filter(t=>t.legIndex===2).map(t=>[t.journey,t.name,t.travelSense]),[
+   ['return','Campana','Hacia CABA'], ['return','Illia','Hacia el centro de CABA']
+ ]);
+ assert.ok(result.tolls.filter(t=>t.legIndex===1).every(t=>t.journey==='outbound'));
+ // Return to TRP is still a return even if the optional last hop to base is unchecked.
+ assert.equal(inferReturnStartLeg(legs.slice(0,-1)),2);
+ assert.ok(estimateLegCrossings(legs.slice(0,-1),false).filter(t=>t.legIndex===2).every(t=>t.journey==='return'));
+ const override=await handler({httpMethod:'POST',body:JSON.stringify({legs,isRoundTrip:true,returnStartLeg:legs.length})});
+ assert.ok(JSON.parse(override.body).tolls.every(t=>t.journey==='outbound'));
+ for(const returnStartLeg of [0,-1,5,1.5,'2']) {
+   assert.equal((await handler({httpMethod:'POST',body:JSON.stringify({legs,isRoundTrip:true,returnStartLeg})})).statusCode,400);
+ }
+});
+
+test('return inference handles one-way and reverse-origin trips without city-name assumptions', () => {
+ const leg=(a,b)=>({path:[a,b]});
+ const caba=[-34.60,-58.38], zarate=[-34.1,-59.0], port=[-34.57,-58.37];
+ assert.equal(inferReturnStartLeg([leg(caba,zarate)]),1);
+ assert.equal(inferReturnStartLeg([leg(zarate,caba),leg(caba,port),leg(port,zarate)]),1);
+ assert.equal(inferReturnStartLeg([leg(caba,zarate),leg(zarate,caba)]),1);
 });
 
 test('leg API validates complete ordered roundtrips and labels the two directions', async () => {

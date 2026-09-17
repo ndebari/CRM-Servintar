@@ -1,4 +1,4 @@
-import { estimateJourneyCrossings, estimateLegCrossings, catalogDate } from '../lib/route-stations.mjs';
+import { estimateJourneyCrossings, estimateLegCrossings, inferReturnStartLeg, catalogDate } from '../lib/route-stations.mjs';
 const reply = (statusCode, body) => ({statusCode, headers:{'Content-Type':'application/json','Cache-Control':'no-store'},body:JSON.stringify(body)});
 export async function handler(event) {
  if(event.httpMethod !== 'POST') return reply(405,{error:'Método no permitido.'});
@@ -13,7 +13,9 @@ export async function handler(event) {
        legs.reduce((sum, leg) => sum + leg.path.length, 0) > 100000 ||
        legs.some((leg, index) => index > 0 && leg.origin !== legs[index - 1].destination) ||
        (input.isRoundTrip && legs.at(-1).destination !== legs[0].origin)) return reply(400,{error:'Se necesitan los tramos completos y ordenados del recorrido.'});
-   return reply(200,{tolls:estimateLegCrossings(legs,input.isRoundTrip),catalogDate,estimated:true});
+   const returnStartLeg = input.returnStartLeg ?? inferReturnStartLeg(legs);
+   if (!Number.isInteger(returnStartLeg) || returnStartLeg < 1 || returnStartLeg > legs.length) return reply(400,{error:'Inicio de vuelta inválido.'});
+   return reply(200,{tolls:estimateLegCrossings(legs,input.isRoundTrip,undefined,returnStartLeg),returnStartLeg,catalogDate,estimated:true});
  }
  const path=input.path;
  if(!Array.isArray(path)||path.length<2||path.length>100000||path.some(p=>!Array.isArray(p)||p.length!==2||!p.every(Number.isFinite)||p[0]<-56||p[0]>-20||p[1]<-75||p[1]>-52))return reply(400,{error:'Se necesita el trazado de Google dentro de Argentina.'});

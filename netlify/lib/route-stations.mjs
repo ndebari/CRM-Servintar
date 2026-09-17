@@ -105,9 +105,28 @@ export function estimateCrossings(path, stations = namedStations) {
 }
 export const catalogDate = catalog.date;
 
-export function estimateLegCrossings(legs, isRoundTrip, stations = namedStations) {
+export function inferReturnStartLeg(legs) {
+  // A return can include a port/yard before the base. Find the furthest stop,
+  // not simply the final leg. Use coordinates, never address spelling or toll heading.
+  if (!legs.length) return 0;
+  const origin = legs[0].path[0];
+  const radians = value => value * Math.PI / 180;
+  const distance = point => {
+    const a = Math.sin(radians(point[0] - origin[0]) / 2) ** 2 +
+      Math.cos(radians(origin[0])) * Math.cos(radians(point[0])) * Math.sin(radians(point[1] - origin[1]) / 2) ** 2;
+    return 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, a)));
+  };
+  const distances = legs.map(leg => distance(leg.path.at(-1)));
+  const furthest = Math.max(...distances);
+  // Ignore small differences from entrance snapping; use the last equally distant stop.
+  let pivot = legs.length;
+  distances.forEach((value, index) => { if (furthest - value <= 100) pivot = index + 1; });
+  return pivot;
+}
+
+export function estimateLegCrossings(legs, isRoundTrip, stations = namedStations, returnStartLeg = inferReturnStartLeg(legs)) {
   return legs.flatMap((leg, index) => {
-    const journey = isRoundTrip && index === legs.length - 1 ? 'return' : 'outbound';
+    const journey = index >= returnStartLeg ? 'return' : 'outbound';
     return estimateCrossings(leg.path, stations).map(toll => ({
       ...toll, id: journey + ':leg-' + index + ':' + toll.id, journey,
       legIndex: index, legOrigin: leg.origin, legDestination: leg.destination
