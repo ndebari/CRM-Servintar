@@ -1,0 +1,276 @@
+{
+  "reviewedOn": "2026-09-17",
+  "license": "OSM geometry: ODbL-1.0; Buenos Aires Data identities: CC-BY-2.5-AR",
+  "geometrySource": "https://router.project-osrm.org (OpenStreetMap road geometry, queried 2026-09-17)",
+  "notes": "Named mainline plazas and separate access lanes. Access paths validate road overlap, not just distance to a booth. Retiro II and the Illia gantry share a plaza identity after the 2023 conversion.",
+  "stations": [
+    {
+      "id": 11656190491,
+      "name": "Illia",
+      "operator": "ausa",
+      "plazaId": "ausa-illia",
+      "road": "Autopista Arturo Illia",
+      "province": "Ciudad Autónoma de Buenos Aires",
+      "identitySource": "https://data.buenosaires.gob.ar/dataset/peajes-porticos-autopistas",
+      "matchRadiusMeters": 25
+    },
+    {
+      "id": 11656190490,
+      "name": "Illia",
+      "operator": "ausa",
+      "plazaId": "ausa-illia",
+      "road": "Autopista Arturo Illia",
+      "province": "Ciudad Autónoma de Buenos Aires",
+      "identitySource": "https://data.buenosaires.gob.ar/dataset/peajes-porticos-autopistas",
+      "matchRadiusMeters": 25
+    },
+    {
+      "id": 3207131961,
+      "name": "Retiro II",
+      "operator": "ausa",
+      "plazaId": "ausa-illia",
+      "road": "Autopista Arturo Illia",
+      "province": "Ciudad Autónoma de Buenos Aires",
+      "identitySource": "https://data.buenosaires.gob.ar/dataset/peajes-porticos-autopistas",
+      "accessPath": [
+        [
+          -34.573329,
+          -58.395949
+        ],
+        [
+          -34.573352,
+          -58.396048
+        ],
+        [
+          -34.573367,
+          -58.396134
+        ],
+        [
+          -34.573378,
+          -58.396233
+        ],
+        [
+          -34.573383,
+          -58.396324
+        ],
+        [
+          -34.573384,
+          -58.396403
+        ],
+        [
+          -34.57338,
+          -58.396486
+        ],
+        [
+          -34.573372,
+          -58.396577
+        ],
+        [
+          -34.573356,
+          -58.396677
+        ],
+        [
+          -34.57333,
+          -58.396793
+        ],
+        [
+          -34.57328,
+          -58.396953
+        ],
+        [
+          -34.573201,
+          -58.397173
+        ],
+        [
+          -34.57301,
+          -58.397736
+        ]
+      ],
+      "accessToleranceMeters": 8
+    },
+    {
+      "id": 288973972,
+      "name": "Salguero",
+      "operator": "ausa",
+      "plazaId": "ausa-salguero",
+      "road": "Autopista Arturo Illia",
+      "province": "Ciudad Autónoma de Buenos Aires",
+      "identitySource": "https://data.buenosaires.gob.ar/dataset/peajes-porticos-autopistas",
+      "accessPath": [
+        [
+          -34.571285,
+          -58.400648
+        ],
+        [
+          -34.571274,
+          -58.400705
+        ],
+        [
+          -34.571253,
+          -58.400763
+        ],
+        [
+          -34.571231,
+          -58.400827
+        ],
+        [
+          -34.571204,
+          -58.400889
+        ],
+        [
+          -34.571172,
+          -58.400958
+        ],
+        [
+          -34.571056,
+          -58.401172
+        ],
+        [
+          -34.570345,
+          -58.402392
+        ],
+        [
+          -34.570231,
+          -58.402606
+        ],
+        [
+          -34.570155,
+          -58.402768
+        ],
+        [
+          -34.570064,
+          -58.402973
+        ],
+        [
+          -34.569936,
+          -58.403309
+        ]
+      ],
+      "accessToleranceMeters": 8
+    },
+    {
+      "id": 5265026326,
+      "name": "Sarmiento",
+      "operator": "ausa",
+      "plazaId": "ausa-sarmiento",
+      "road": "Autopista Arturo Illia",
+      "province": "Ciudad Autónoma de Buenos Aires",
+      "identitySource": "https://data.buenosaires.gob.ar/dataset/peajes-porticos-autopistas",
+      "accessPath": [
+        [
+          -34.566754,
+          -58.406448
+        ],
+        [
+          -34.566816,
+          -58.406363
+        ],
+        [
+          -34.566867,
+          -58.406321
+        ],
+        [
+          -34.566939,
+          -58.406278
+        ],
+        [
+          -34.567015,
+          -58.406256
+        ],
+        [
+          -34.5671,
+          -58.406254
+        ],
+        [
+          -34.567172,
+          -58.406273
+        ],
+        [
+          -34.567257,
+          -58.406317
+        ],
+        [
+          -34.567311,
+          -58.406361
+        ],
+        [
+          -34.567368,
+          -58.406435
+        ],
+        [
+          -34.567406,
+          -58.406517
+        ],
+        [
+          -34.567434,
+          -58.406604
+        ],
+        [
+          -34.567444,
+          -58.406725
+        ],
+        [
+          -34.567434,
+          -58.406832
+        ],
+        [
+          -34.567397,
+          -58.40695
+        ],
+        [
+          -34.567355,
+          -58.407053
+        ],
+        [
+          -34.567264,
+          -58.407248
+        ],
+        [
+          -34.567119,
+          -58.407536
+        ]
+      ],
+      "accessToleranceMeters": 8
+    },
+    {
+      "id": 30958678,
+      "name": "Campana",
+      "operator": "ausol",
+      "plazaId": "ausol-campana",
+      "road": "RN 9 · Acceso Norte, ramal Campana",
+      "province": "Buenos Aires",
+      "identitySource": "https://www.ausol.com.ar/valores",
+      "matchRadiusMeters": 25
+    },
+    {
+      "id": 454551081,
+      "name": "Campana",
+      "operator": "ausol",
+      "plazaId": "ausol-campana",
+      "road": "RN 9 · Acceso Norte, ramal Campana",
+      "province": "Buenos Aires",
+      "identitySource": "https://www.ausol.com.ar/valores",
+      "matchRadiusMeters": 25
+    },
+    {
+      "id": 4598707920,
+      "name": "Campana",
+      "operator": "ausol",
+      "plazaId": "ausol-campana",
+      "road": "RN 9 · Acceso Norte, ramal Campana",
+      "province": "Buenos Aires",
+      "identitySource": "https://www.ausol.com.ar/valores",
+      "accessPath": [
+        [
+          -34.455918,
+          -58.693064
+        ],
+        [
+          -34.455452,
+          -58.693442
+        ]
+      ],
+      "accessToleranceMeters": 8
+    }
+  ]
+}
