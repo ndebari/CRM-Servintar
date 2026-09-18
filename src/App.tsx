@@ -3,6 +3,7 @@ import { weightedCostAdjustment } from './costAdjustment';
 import { SessionControls } from './SessionControls';
 import { quoteNumber } from './quoteLifecycle';
 import { QuotesModule } from './QuotesModule';
+import { RandomQuotesModule } from './RandomQuotesModule';
 import { readDatabase, storeQuote, changeQuote, storeClient, removeClient, saveRemoteTypes, saveRemoteAdditionals, crmRpc } from './quoteDatabase';
 import { AbmModule } from './AbmModule';
 import { useEffect, useMemo, useState, useRef } from 'react';
@@ -131,7 +132,7 @@ const currency = new Intl.NumberFormat('es-AR', {
 
 function App() {
   const today = new Date();
-  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'costos' | 'abm' | 'precios' | 'proveedores' | 'fleteros'>('cotizador');
+  const [view, setView] = useState<'cotizador' | 'clientes' | 'cotizaciones' | 'random' | 'costos' | 'abm' | 'precios' | 'proveedores' | 'fleteros'>('cotizador');
   const [month] = useState(months[today.getMonth()]);
   const [year] = useState(String(today.getFullYear()));
   const [lookupMonth, setLookupMonth] = useState(months[today.getMonth()]);
@@ -310,7 +311,7 @@ function App() {
     const previous=clients.find(c=>c.id===client.id);
     await storeClient({...client,createdAt:previous?.createdAt || new Date().toISOString(),active:client.active!==false});
     await refreshDatabase();
-    setQuoteDraft(current=>({...current,clientId:current.clientId || client.id}));
+    setQuoteDraft(current=>current.random ? current : {...current,clientId:current.clientId || client.id});
   };
   const deleteClient = async (id: string) => {
     await removeClient(id);await refreshDatabase();
@@ -319,12 +320,15 @@ function App() {
   const prepareQuote = async () => {
     if(!databaseReady) return 'La base de datos todavía no está disponible.';
     const error=getQuoteStageErrors(quoteDraft,clients).find(Boolean);if(error)return error;
-    if(revisionParent && quoteDraft.clientId!==revisionParent.clientId) return 'La recotización debe conservar el cliente original.';
+    if(revisionParent && (quoteDraft.random || quoteDraft.clientId!==revisionParent.clientId)) return 'La recotización debe conservar el cliente original.';
     const saveKey=JSON.stringify({quoteDraft,parent:revisionParent?.id,totals});
     if(!pendingSave.current || pendingSave.current.key!==saveKey)pendingSave.current={key:saveKey,quote:buildPreparedQuote(quoteDraft,clients,totals)};
-    const saved=await storeQuote(pendingSave.current.quote,revisionParent?.id);
-    await refreshDatabase();setQuoteFocus(saved.id);setRevisionParent(null);
-    setQuoteDraft(createQuoteDraft(quoteDraft.clientId));pendingSave.current=null;setView('cotizaciones');
+    const saved=quoteDraft.random
+      ? await crmRpc<PreparedQuote>('crm_create_random_quote',{p_quote:pendingSave.current.quote})
+      : await storeQuote(pendingSave.current.quote,revisionParent?.id);
+    if (!quoteDraft.random) await refreshDatabase();
+    setQuoteFocus(saved.id);setRevisionParent(null);
+    setQuoteDraft(createQuoteDraft(quoteDraft.clientId));pendingSave.current=null;setView(quoteDraft.random ? 'random' : 'cotizaciones');
     return undefined;
   };
   const updateQuote = async (id:string, action:'send'|'approve', contactKey?:string) => {
@@ -363,6 +367,8 @@ function App() {
           <p className="nav-section-label">Espacio de trabajo</p>
         <nav className="nav-list" aria-label="Principal">
           <button className={`nav-item ${view === 'cotizador' ? 'active' : ''}`} onClick={() => setView('cotizador')} aria-current={view === 'cotizador' ? 'page' : undefined} type="button"><CircleDollarSign size={18} />Cotizador</button>
+          <button className={`nav-item ${view === 'cotizaciones' ? 'active' : ''}`} onClick={() => {setQuoteFocus('');setView('cotizaciones');}} aria-current={view === 'cotizaciones' ? 'page' : undefined} type="button"><ClipboardList size={18} />Cotizaciones</button>
+          <button className={`nav-item ${view === 'random' ? 'active' : ''}`} onClick={() => {setQuoteFocus('');setView('random');}} aria-current={view === 'random' ? 'page' : undefined} type="button"><ClipboardList size={18} />Cotizaciones random</button>
           <button className={`nav-item ${view === 'clientes' ? 'active' : ''}`} onClick={() => setView('clientes')} aria-current={view === 'clientes' ? 'page' : undefined} type="button"><Users size={18} />Clientes</button>
           <button className={`nav-item ${view === 'proveedores' ? 'active' : ''}`} onClick={() => setView('proveedores')} aria-current={view === 'proveedores' ? 'page' : undefined} type="button"><Users size={18} />Proveedores</button>
           <button className={`nav-item ${view === 'precios' ? 'active' : ''}`} onClick={() => {setQuoteFocus('');setView('precios');}} aria-current={view === 'precios' ? 'page' : undefined} type="button"><ClipboardList size={18} />Tarifas vigentes</button>
@@ -387,6 +393,7 @@ function App() {
             onDraftChange={setQuoteDraft}
             onPrepareQuote={prepareQuote}
             totals={totals}
+            allowRandom={!revisionParent}
           />
         )}
         {view === 'abm' && <><AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} /></>}
@@ -400,6 +407,7 @@ function App() {
           />
         )}
         {(view === 'cotizaciones' || view === 'precios') && <QuotesModule clients={clients} quotes={quotes} priceList={view==='precios'} focusId={quoteFocus} onChange={updateQuote} onRequote={requote} />}
+        {view === 'random' && <RandomQuotesModule focusId={quoteFocus} onCreate={() => {setRevisionParent(null);setQuoteDraft({...createQuoteDraft(''),random:true});setView('cotizador');}} />}
         {view === 'costos' && (
           <CostStructure
             costLines={costLines}

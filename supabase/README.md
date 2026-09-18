@@ -1,5 +1,11 @@
 # Supabase · CRM Servintar
 
+## Cotizaciones random
+
+Ejecutar `crm-random-quotes.sql` después de `crm-complete.sql` y `crm-admin-access.sql` antes de publicar el frontend con esta sección. Agrega almacenamiento y RPC para consultas sin cliente; no modifica los registros comerciales. Cada usuario autorizado ve sus consultas y el administrador puede ver todas. Los reintentos de un mismo guardado conservan el identificador y no duplican registros.
+
+En Cotizador, seleccionar **Consulta sin cliente**, completar recorrido, costos, peajes y adicionales y pulsar **Obtener tarifa final**. Ese paso guarda automáticamente el importe calculado y abre su detalle en **Cotizaciones random**. Un error de guardado conserva los datos para reintentar. La referencia `CR-00001` identifica la consulta y es independiente de la numeración comercial.
+
 ## Instalación
 
 Ejecutar **crm-complete.sql** en SQL Editor del proyecto CRM Servintar. Es la instalación unificada actual. No ejecutar schema.sql ni quote-register.sql como alternativa: son esquemas anteriores y no representan el modelo vigente.

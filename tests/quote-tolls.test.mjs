@@ -17,6 +17,24 @@ await writeFile(`${temp}/ThemeToggle.mjs`,ts.transpileModule(theme,{compilerOpti
 await writeFile(`${temp}/quote.mjs`, compiled.outputText.replace("'./SessionControls'", "'./SessionControls.mjs'").replace("'../netlify/lib/toll-operators.json'", JSON.stringify(catalogUrl) + " with { type: 'json' }"));
 const { validateCuit, formatCuit, formatPlaceLabel, getQuoteStageErrors, getClientContacts, roundQuoteTariff, initialClients, BERISSO_ADDRESS, getRouteStops, createAdditionalSelection, calculateGoogleRoute, getTollGroups, calculateAdditionalAmount, calculateRouteDistance, createQuoteDraft, getTruckRouteKey, buildPreparedQuote, summarizeTolls, mergeRouteTolls } = await import(pathToFileURL(`${temp}/quote.mjs`).href);
 
+test('random consultation skips only client and contact, preserves final calculation and snapshot', () => {
+ const draft={...createQuoteDraft(''),random:true,transportKind:'carreton',origin:'Carga',destination:'Descarga',distanceKm:100,requiredDays:1,utilityPercent:20,roundingUnit:100};
+ assert.equal(getQuoteStageErrors(draft,[])[0],'');
+ assert.match(getQuoteStageErrors({...draft,random:false},[])[0],/cliente/);
+ assert.match(getQuoteStageErrors({...draft,quoteDate:''},[])[0],/fechas/);
+ assert.match(getQuoteStageErrors({...draft,destination:''},[])[1],/direcciones/);
+ assert.match(getQuoteStageErrors({...draft,utilityPercent:''},[])[2],/utilidad/);
+ assert.match(getQuoteStageErrors(draft,[])[3],/peajes/);
+ draft.tollRouteKey=getTruckRouteKey(draft);draft.tollListStatus='manual';
+ assert.ok(getQuoteStageErrors(draft,[]).every(error=>!error));
+ const quote=buildPreparedQuote(draft,[],{perDay:5000,perKm:100});
+ assert.equal(quote.amount,18800);
+ assert.equal(quote.random,true);assert.equal(quote.clientId,'');
+ assert.equal(quote.clientSnapshot,undefined);assert.equal(quote.contact,undefined);
+ assert.equal(quote.requiredAction,'');assert.match(quote.text,/Consulta|consulta/);
+ draft.distanceKm=200;assert.equal(quote.draft.distanceKm,100);
+});
+
 test('selected places retain business names and operation descriptions are optional and saved', () => {
  assert.equal(formatPlaceLabel({name:'TECPLATA',formatted_address:'Río de Janeiro Oeste 5071, Berisso'}),'TECPLATA, Río de Janeiro Oeste 5071, Berisso');
  assert.equal(formatPlaceLabel({name:'Zárate',formatted_address:'Zárate, Buenos Aires'}),'Zárate, Buenos Aires');

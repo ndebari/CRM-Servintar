@@ -133,7 +133,7 @@ export type Client = {
   purchasingContact: ContactInfo;
 };
 
-export type QuoteStatus = 'Borrador' | 'Pendiente de envio' | 'Enviada' | 'Aprobada' | 'Rechazada' | 'Enviada / pendiente' | 'Recotizada';
+export type QuoteStatus = 'Borrador' | 'Pendiente de envio' | 'Enviada' | 'Aprobada' | 'Rechazada' | 'Enviada / pendiente' | 'Recotizada' | 'Consulta';
 export type TransportKind = 'expo' | 'impo' | 'carreton' | 'distribucion' | 'carga-suelta' | 'otro';
 const transportLabels: Record<TransportKind,string> = {expo:'Expo',impo:'Impo',carreton:'Carretón',distribucion:'Distribución','carga-suelta':'Carga suelta',otro:'Otro'};
 export const quoteStages = ['Cliente','Descripción del servicio','Cotización','Peajes','Adicionales','Detalle de la cotización'];
@@ -180,6 +180,7 @@ export type RouteToll = {
 };
 
 export type TransportQuoteDraft = {
+  random?: boolean;
   clientId: string;
   contactKey?: ContactKey;
   roundingUnit?: number;
@@ -215,6 +216,7 @@ export type TransportQuoteDraft = {
 };
 
 export type PreparedQuote = {
+  random?: boolean;
   number?: string;
   sequence?: number;
   revision?: number;
@@ -344,7 +346,7 @@ export function getQuoteStageErrors(draft: TransportQuoteDraft, clients: Client[
   const stops = getRouteStops(draft);
   const validAdditional = draft.additionals.every(item => Number.isFinite(item.amount) && item.amount >= 0 && Number.isFinite(item.discountPercent) && item.discountPercent >= 0 && item.discountPercent <= 100 && (item.previousAmount === undefined || item.previousAmount === item.amount || item.confirmedDifferentAmount));
   return [
-    !client ? 'Seleccioná un cliente.' : !validDate(draft.requestDate) || !validDate(draft.quoteDate) ? 'Completá las fechas de solicitud y cotización.' : !contact ? 'Seleccioná un contacto del cliente. Podés cargarlo en el ABM de Clientes.' : '',
+    !draft.random && !client ? 'Seleccioná un cliente.' : !validDate(draft.requestDate) || !validDate(draft.quoteDate) ? 'Completá las fechas de solicitud y cotización.' : !draft.random && !contact ? 'Seleccioná un contacto del cliente. Podés cargarlo en el ABM de Clientes.' : '',
     ![LAVAISSE_BASE,BERISSO_BASE].includes(baseName(draft.base)) ? 'Seleccioná una base de salida.' : stops.some(stop => !stop.trim()) ? 'Completá todas las direcciones y paradas intermedias.' : stops.length > 26 ? 'El recorrido admite hasta 25 tramos.' : '',
     !Number.isFinite(draft.distanceKm) || draft.distanceKm <= 0 ? 'Completá los kilómetros del recorrido.' : !Number.isInteger(draft.requiredDays) || draft.requiredDays < 1 ? 'Completá los días de operación.' : !isValidUtility(draft.utilityPercent) ? 'Completá la utilidad.' : '',
     !summarizeTolls(draft).ready ? 'Completá y confirmá los peajes del recorrido.' : '',
@@ -360,7 +362,7 @@ export function calculateAdditionalAmount(item: QuoteAdditionalSelection, transp
 }
 
 export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[], totals: CostTotals): PreparedQuote {
-  const client = clients.find((item) => item.id === draft.clientId);
+  const client = draft.random ? undefined : clients.find((item) => item.id === draft.clientId);
   const baseAmount = totals.perKm * draft.distanceKm + totals.perDay * draft.requiredDays;
   const tollSummary = summarizeTolls(draft);
   if (!tollSummary.ready) {
@@ -383,20 +385,21 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
 
   return {
     id: crypto.randomUUID(),
+    random: draft.random === true,
     createdAt: new Date().toISOString(),
     clientSnapshot: client ? structuredClone(client) : undefined,
-    clientId: draft.clientId,
+    clientId: draft.random ? '' : draft.clientId,
     requestDate: draft.requestDate,
     quoteDate: draft.quoteDate,
     summary: `${draft.serviceName} ${transportLabels[draft.transportKind]}`,
-    clientName: client?.alias || client?.businessName,
+    clientName: draft.random ? 'Consulta sin cliente' : client?.alias || client?.businessName,
     contact: contact ? {...contact} : undefined,
     draft: JSON.parse(JSON.stringify(draft)),
-    state: 'Pendiente de envio',
-    requiredAction: 'Enviar al cliente',
+    state: draft.random ? 'Consulta' : 'Pendiente de envio',
+    requiredAction: draft.random ? '' : 'Enviar al cliente',
     amount: totalAmount,
     text: [
-      `Estimados ${client?.alias ?? client?.businessName ?? 'cliente'},`,
+      draft.random ? 'Cotización de consulta sin cliente' : `Estimados ${client?.alias ?? client?.businessName ?? 'cliente'},`,
       ...(contact ? [`Contacto: ${contact.fullName}${contact.role ? ' · ' + contact.role : ''}`,`Email: ${contact.email || '—'} · Teléfono: ${contact.phone || '—'}`] : []),
       `Fecha de solicitud: ${draft.requestDate} · Fecha de cotización: ${draft.quoteDate}`,
       '',
@@ -599,7 +602,8 @@ export function CotizadorHome({
   previousQuotes,
   onDraftChange,
   onPrepareQuote,
-  totals
+  totals,
+  allowRandom = true
 }: {
   additionalCatalog: AdditionalDefinition[];
   clients: Client[];
@@ -608,6 +612,7 @@ export function CotizadorHome({
   onDraftChange: (draft: TransportQuoteDraft) => void;
   onPrepareQuote: () => Promise<string | undefined>;
   totals: CostTotals;
+  allowRandom?: boolean;
 }) {
   const selectedClient = clients.find((client) => client.id === draft.clientId);
   const [stage, setStage] = useState(0);
@@ -799,6 +804,7 @@ export function CotizadorHome({
 
   const stageErrors = getQuoteStageErrors(draft, clients);
   const canPrepare = stageErrors.every(error => !error);
+  const stages = draft.random ? ['Consulta', ...quoteStages.slice(1,4), 'Adicionales y tarifa final'] : quoteStages;
   const roundedTariff = quoteTariff === null ? null : roundQuoteTariff(quoteTariff,draft.roundingUnit);
   const exactCurrency = (value: number) => value.toLocaleString('es-AR',{style:'currency',currency:'ARS',minimumFractionDigits:2,maximumFractionDigits:2});
   const changeStage = (next: number) => { setSaveError(''); setStage(next); };
@@ -807,12 +813,14 @@ export function CotizadorHome({
     <div className="module-frame">
       <header className="topbar quote-topbar"><div><h1>Cotizador</h1></div><SessionControls /></header>
 <div className="module-scroll quote-wizard">
-      <nav className="quote-steps" aria-label="Etapas del cotizador">{quoteStages.map((label,index) => <button key={label} type="button" aria-current={stage===index ? 'step' : undefined} disabled={index>stage} onClick={() => changeStage(index)}><span>{index+1}</span>{label}</button>)}</nav>
+      <nav className="quote-steps" aria-label="Etapas del cotizador">{stages.map((label,index) => <button key={label} type="button" aria-current={stage===index ? 'step' : undefined} disabled={index>stage || isSaving} onClick={() => changeStage(index)}><span>{index+1}</span>{label}</button>)}</nav>
       <div className="panel wizard-panel">
-        <div className="panel-header"><h2 ref={stageHeading} tabIndex={-1}>{quoteStages[stage]}</h2><span>{stage+1} / 6</span></div>
+        <div className="panel-header"><h2 ref={stageHeading} tabIndex={-1}>{stages[stage]}</h2><span>{stage+1} / {stages.length}</span></div>
         <section hidden={stage!==0} aria-label="Datos del cliente">
+          {allowRandom && <label className="check-inline"><input type="checkbox" checked={draft.random === true} onChange={event => onDraftChange({...draft, random:event.target.checked, clientId:'', contactKey:undefined})} /> Consulta sin cliente</label>}
+          {draft.random && <p className="muted-copy">Al obtener la tarifa final, la consulta se guarda automáticamente en Cotizaciones random.</p>}
           <div className="form-grid">
-            <label>
+            {!draft.random && <label>
               Cliente
               <select value={draft.clientId} onChange={(event) => updateDraft('clientId', event.target.value)}>
                 <option value="">Seleccionar cliente</option>
@@ -822,7 +830,7 @@ export function CotizadorHome({
                   </option>
                 ))}
               </select>
-            </label>
+            </label>}
             <label>
               Fecha solicitud
               <input type="date" value={draft.requestDate} onChange={(event) => updateDraft('requestDate', event.target.value)} />
@@ -831,9 +839,9 @@ export function CotizadorHome({
               Fecha cotizacion
               <input type="date" value={draft.quoteDate} onChange={(event) => updateDraft('quoteDate', event.target.value)} />
             </label>
-            <label>Contacto<select aria-label="Contacto" value={draft.contactKey ?? ''} onChange={event => updateDraft('contactKey',event.target.value as ContactKey)}>
+            {!draft.random && <label>Contacto<select aria-label="Contacto" value={draft.contactKey ?? ''} onChange={event => updateDraft('contactKey',event.target.value as ContactKey)}>
               <option value="">Seleccionar contacto</option>{contacts.map(item => <option key={item.key} value={item.key}>{item.contact.fullName} · {item.label}</option>)}
-            </select></label>
+            </select></label>}
           </div>
           {selectedContact && <p className="contact-summary">{selectedContact.role} · {selectedContact.email || 'Sin email'} · {selectedContact.phone || 'Sin teléfono'}</p>}
         </section>
@@ -1034,6 +1042,7 @@ export function CotizadorHome({
           </section>
         </section>
         <section hidden={stage!==4} aria-label="Etapa de adicionales">
+          {draft.random && <><label className="rounding-control">Redondeo de la tarifa final<select value={draft.roundingUnit ?? 0} onChange={event => updateDraft('roundingUnit',Number(event.target.value))}><option value={0}>Sin redondeo adicional</option><option value={1}>Al peso superior</option><option value={100}>Al múltiplo superior de $100</option><option value={1000}>Al múltiplo superior de $1.000</option></select></label><p className="muted-copy">Completá los adicionales y pulsá Obtener tarifa final. La consulta se guardará automáticamente.</p></>}
           <p className="muted-copy">Los porcentajes se calculan sobre la tarifa cotizada de transporte, con costos, utilidad y redondeo aplicados.</p>
           <div className="additional-list">
             {additionalRows.length === 0 ? (
@@ -1085,7 +1094,13 @@ export function CotizadorHome({
             <div><dt>Subtotal costo del viaje</dt><dd>{exactCurrency(baseAmount)}</dd></div>
             <div><dt>Peajes</dt><dd>{exactCurrency(tollSummary.total)}</dd></div>
             <div className="review-emphasis"><dt>Total costo</dt><dd>{exactCurrency(quoteCost)}</dd></div>
-            <div><dt>Utilidad</dt><dd>{utilityValid ? draft.utilityPercent+'%' : 'Pendiente'}</dd></div>
+            <div><dt><label htmlFor="review-utility">Margen de utilidad %</label></dt><dd>
+              <input id="review-utility" type="number" min="0" max="99.99" step="0.01" required
+                value={draft.utilityPercent} disabled={isSaving} aria-invalid={!utilityValid}
+                aria-describedby={!utilityValid ? 'review-utility-error' : undefined}
+                onChange={event => updateDraft('utilityPercent', event.target.value === '' ? '' : event.target.valueAsNumber)} />
+              {!utilityValid && <span id="review-utility-error" className="field-error" role="alert">Ingresá un margen entre 0 y menos de 100.</span>}
+            </dd></div>
             <div><dt>Tarifa sin redondeo</dt><dd>{quoteTariff === null ? 'Pendiente' : exactCurrency(quoteTariff)}</dd></div>
           </dl><p className="tariff-formula">Tarifa = total costo / (1 − utilidad / 100)</p>
           <label className="rounding-control">Redondeo<select value={draft.roundingUnit ?? 0} onChange={event => updateDraft('roundingUnit',Number(event.target.value))}><option value={0}>Sin redondeo adicional</option><option value={1}>Al peso superior</option><option value={100}>Al múltiplo superior de $100</option><option value={1000}>Al múltiplo superior de $1.000</option></select></label>
@@ -1096,9 +1111,10 @@ export function CotizadorHome({
         </section>
       </div>
       <footer className="wizard-footer">
-        <button className="ghost-button" type="button" disabled={stage===0} onClick={() => changeStage(stage-1)}>Anterior</button>
-        <p role="status">{saveError || (stage===5 ? stageErrors.find(Boolean) : stageErrors[stage]) || ''}</p>
-        {stage<5 ? <button className="primary-button" type="button" disabled={Boolean(stageErrors[stage])} onClick={() => changeStage(stage+1)}>Siguiente</button>
+        <button className="ghost-button" type="button" disabled={stage===0 || isSaving} onClick={() => changeStage(stage-1)}>Anterior</button>
+        <p role="status">{saveError || (stage===5 || (draft.random && stage===4) ? stageErrors.find(Boolean) : stageErrors[stage]) || ''}</p>
+        {draft.random && stage===4 ? <button className="primary-button" type="button" disabled={!canPrepare || isSaving} onClick={async () => {setIsSaving(true); try {setSaveError(await onPrepareQuote() || '');} catch(error) {setSaveError(error instanceof Error ? error.message : 'No se pudo guardar la consulta. Reintentá.');} finally {setIsSaving(false);}}}>{isSaving ? 'Guardando consulta…' : 'Obtener tarifa final'}</button>
+          : stage<5 ? <button className="primary-button" type="button" disabled={Boolean(stageErrors[stage]) || isSaving} onClick={() => changeStage(stage+1)}>Siguiente</button>
           : <button className="primary-button" type="button" disabled={!canPrepare || isSaving} onClick={async () => {setIsSaving(true); try {setSaveError(await onPrepareQuote() || '');} catch(error) {setSaveError(error instanceof Error ? error.message : 'No se pudo guardar la cotización.');} finally {setIsSaving(false);}}}><Save size={20} /> Guardar</button>}
       </footer>
 </div>
@@ -1256,7 +1272,6 @@ export function ClientsModule({
           </div>
 
           <div className="form-grid">
-            <label>Fecha de alta<input readOnly value={displayDate(editingClient.createdAt)} placeholder="Se registra al guardar" /></label>
             <label>Estado<select value={editingClient.active === false ? 'inactive' : 'active'} onChange={event => setEditingClient({ ...editingClient, active: event.target.value === 'active' })}><option value="active">Activo</option><option value="inactive">Inactivo</option></select></label>
           </div>
           <div className="contact-grid">
