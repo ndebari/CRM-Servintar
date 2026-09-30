@@ -16,7 +16,7 @@ export function CrmAccess({children}:{children:ReactNode}) {
  },[]);
  useEffect(()=>{
   setAdmin(false);if(!session || !supabase)return;let active=true;setLoading(true);
-  void supabase.rpc('crm_claim_access').then(({data,error})=>{if(active){setAllowedUser(data===true&&!error?session.user.id:'');setMessage(error?'No se pudo verificar el acceso. Reintentá.':data===true?'':'Tu usuario todavía no está autorizado para este CRM.');setLoading(false);}});
+  void supabase.rpc('crm_claim_access').then(({data,error})=>{if(active){setAllowedUser(data===true&&!error?session.user.id:'');setMessage(error?'No se pudo verificar el acceso. Reintentá.':data===true?'':'Tu usuario está pendiente de aprobación por el administrador. Hasta que sea aprobado no podés acceder al CRM.');setLoading(false);}});
   void supabase.rpc('crm_is_admin').then(({data,error})=>{if(active)setAdmin(data===true&&!error);});
   return()=>{active=false;};
  },[session?.user.id]);
@@ -24,18 +24,18 @@ export function CrmAccess({children}:{children:ReactNode}) {
   event.preventDefault();if(!supabase)return;setBusy(true);setMessage('');
   try {
    const result=signup?await supabase.auth.signUp({email:email.trim(),password,options:{emailRedirectTo:window.location.origin}}):await supabase.auth.signInWithPassword({email:email.trim(),password});
-   if(result.error)throw new Error(signup&&result.error.message.toLowerCase().includes('database error')?'No se pudo crear el usuario. Verificá que el administrador haya autorizado este correo.':result.error.message);
-   setPassword('');if(signup&&!result.data.session)setMessage('Confirmá tu correo con el enlace recibido y luego ingresá.');
+   if(result.error)throw new Error(signup&&result.error.message.toLowerCase().includes('database error')?'No se pudo crear el usuario. Reintentá en unos minutos.':result.error.message);
+   setPassword('');if(signup&&!result.data.session)setMessage('Usuario creado. Confirmá tu correo con el enlace recibido. El administrador deberá aprobar tu acceso desde la app.');
   }catch(error){setMessage(error instanceof Error?error.message:'No se pudo iniciar sesión.');}finally{setBusy(false);}
  };
  if(loading)return <main className="auth-screen"><section className="panel"><h1>CRM Servintar</h1><p>Verificando acceso…</p></section></main>;
  if(session&&allowedUser===session.user.id)return <SessionContext.Provider value={{email:session.user.email||'',admin,signOut:()=>void supabase?.auth.signOut()}}>{children}</SessionContext.Provider>;
  return <main className="auth-screen"><div className="auth-theme"><ThemeToggle/></div><section className="panel"><p className="eyebrow">Servintar</p><h1>{session?'Acceso al CRM':signup?'Crear usuario':'Ingresar al CRM'}</h1>
  {session?<><p role="alert">{message}</p><button className="primary-button" onClick={()=>window.location.reload()}>Verificar acceso</button><button className="ghost-button" onClick={()=>void supabase?.auth.signOut()}>Cerrar sesión</button></>:<form onSubmit={submit}>
- {signup&&<p>Solo podés crear tu usuario si el administrador autorizó previamente tu correo.</p>}
+ {signup&&<p>Al crear tu usuario, quedará pendiente de aprobación por el administrador.</p>}
  <label>Correo<input type="email" required autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label>
  <label>Contraseña<input type="password" required minLength={8} autoComplete={signup?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)}/></label>
  {message&&<p role="status">{message}</p>}<button type="submit" className="primary-button" disabled={busy}>{busy?'Procesando…':signup?'Crear usuario':'Ingresar'}</button>
- <button type="button" className="ghost-button" disabled={busy} onClick={()=>{setSignup(!signup);setMessage('');}}>{signup?'Ya tengo usuario':'Crear usuario autorizado'}</button>
+ <button type="button" className="ghost-button" disabled={busy} onClick={()=>{setSignup(!signup);setMessage('');}}>{signup?'Ya tengo usuario':'Crear usuario'}</button>
  </form>}</section></main>;
 }

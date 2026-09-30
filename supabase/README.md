@@ -75,3 +75,7 @@ Precios fleteros guarda versiones inmutables por proveedor con fecha de vigencia
 Validación: `scripts/test-supplier-prices.mjs` con PGlite, `tests/supplier-prices.test.mjs`, TypeScript y build. La prueba visual aislada verificó actualización y recuperación de los importes del mes anterior sin crear datos de prueba en producción.
 
 Adicionales referenciales: aplicar crm-additional-references.sql después de crm-client-access.sql. Agrega fechas y auditoría de valores. Guardar los costos del mes actual ajusta únicamente importes fijos por la suma ponderada de valores base asignados por día/km y sus índices. Los porcentajes permanecen iguales y se aplican sobre la tarifa final del transporte. Cada mes conserva su base para evitar aumentos duplicados; correcciones históricas no alteran referencias vigentes. Validar con scripts/test-additional-references.mjs (PGlite).
+
+
+### Aprobación después del registro
+Aplicar `crm-pending-users.sql` después de `crm-client-access.sql`. El usuario puede registrarse y confirmar su correo, pero permanece sin acceso hasta que el administrador lo aprueba en **ABM → Usuarios**. Los pendientes aparecen primero. La aprobación conserva el control por cliente: el administrador debe asignarle los clientes que podrá consultar. Los accesos ya autorizados se conservan.

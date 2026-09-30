@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import type { Client } from './crmFeature';
-type UserAccess = {email:string; approvedAt:string; registered:boolean; confirmed:boolean; admin:boolean;clientIds:string[]};
+type UserAccess = {email:string; approved:boolean;approvedAt:string|null; registered:boolean; confirmed:boolean; admin:boolean;clientIds:string[]};
 export function AdminUsers({clients}:{clients:Client[]}) {
  const [users,setUsers]=useState<UserAccess[]>([]);
- const [email,setEmail]=useState('');
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
@@ -23,8 +22,7 @@ export function AdminUsers({clients}:{clients:Client[]}) {
   try {
    const result=await supabase!.rpc('crm_admin_authorize',{p_email:address,p_allowed:allowed});
    if(result.error)throw result.error;
-   setNotice(allowed?'Correo autorizado. Esa persona ya puede crear su usuario y confirmar su correo.':'Acceso revocado.');
-   if(allowed)setEmail('');
+   setNotice(allowed?'Usuario aprobado. Podrá ingresar después de confirmar su correo. Asignale los clientes que podrá ver.':'Acceso revocado.');
    if(!allowed&&selected===address)setSelected('');
    await load();
   }catch(e){setError(e instanceof Error?e.message:(e as {message?:string})?.message||'No se pudo actualizar el acceso.');}
@@ -40,13 +38,11 @@ export function AdminUsers({clients}:{clients:Client[]}) {
   finally{setBusy(false);}
  };
  return <section className="panel admin-users"><h2>Administración de usuarios</h2>
- <p>Autorizá el correo y asignale los clientes que podrá ver. Un usuario sin clientes asignados no verá clientes ni cotizaciones.</p>
- <form onSubmit={e=>{e.preventDefault();void save(email,true);}}>
- <label>Correo del nuevo usuario<input type="email" required maxLength={254} value={email} onChange={e=>setEmail(e.target.value)} disabled={busy}/></label>
- <button className="primary-button" disabled={busy}>Autorizar usuario</button></form>
+ <p>Los nuevos usuarios quedan pendientes hasta que los apruebes. Después asignales los clientes que podrán ver.</p>
+ <button className="ghost-button" disabled={busy} onClick={()=>void load().catch(()=>setError('No se pudo actualizar el listado.'))}>Actualizar usuarios</button>
  {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
  <div className="table-wrap"><table><thead><tr><th>Correo</th><th>Rol</th><th>Estado</th><th>Acceso</th></tr></thead><tbody>
- {users.map(user=><tr key={user.email}><td>{user.email}</td><td>{user.admin?'Administrador':'Usuario'}</td><td>{user.confirmed?'Correo confirmado':user.registered?'Pendiente de confirmar correo':'Pendiente de registro'}</td><td>{user.admin?'Todos los clientes':<><button className="ghost-button" disabled={busy} onClick={()=>{setSelected(user.email);setAssigned(user.clientIds||[]);setSearch('');setError('');setNotice('');}}>Clientes ({user.clientIds?.length||0})</button><button className="ghost-button" disabled={busy} onClick={()=>void save(user.email,false)}>Revocar acceso</button></>}</td></tr>)}
+ {users.map(user=><tr key={user.email}><td>{user.email}</td><td>{user.admin?'Administrador':'Usuario'}</td><td>{!user.approved?'Pendiente de aprobación':user.confirmed?'Aprobado · Correo confirmado':user.registered?'Aprobado · Falta confirmar correo':'Autorizado · Pendiente de registro'}</td><td>{user.admin?'Todos los clientes':!user.approved?<button className="primary-button" disabled={busy} onClick={()=>void save(user.email,true)}>Aprobar usuario</button>:<><button className="ghost-button" disabled={busy} onClick={()=>{setSelected(user.email);setAssigned(user.clientIds||[]);setSearch('');setError('');setNotice('');}}>Clientes ({user.clientIds?.length||0})</button><button className="ghost-button" disabled={busy} onClick={()=>void save(user.email,false)}>Revocar acceso</button></>}</td></tr>)}
  </tbody></table></div>
  {selected&&<form onSubmit={e=>{e.preventDefault();void saveClients();}} className="user-clients-form">
  <h3>Clientes de {selected}</h3><label>Buscar cliente<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nombre de fantasía o razón social"/></label>
