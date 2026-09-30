@@ -264,6 +264,23 @@ test('bold turn directions do not hide a following motorway name and toward sign
   } finally { delete globalThis.window; }
 });
 
+test('zero-distance base/pickup leg retains the remaining Google geometry and leg order', async () => {
+  const point={lat:()=>-34.6,lng:()=>-58.4};
+  let call=0;
+  globalThis.window={google:{maps:{DirectionsService:class{route(input,callback){
+    const leg=call++===0?{distance:{value:0},start_location:point,end_location:point,steps:[{path:[point],distance:{value:0}}]}:{distance:{value:10000},steps:[{path:[point,{lat:()=>-34.5,lng:()=>-58.5}]}]};
+    callback({routes:[{legs:[leg]}]},'OK');
+  }}}}};
+  try{
+    const route=await calculateGoogleRoute(['Base','Base','Destino']);
+    assert.equal(route.distanceKm,10);
+    assert.equal(route.legs.length,2);
+    assert.deepEqual(route.legs[0].path,[[-34.6,-58.4],[-34.6,-58.4]]);
+    assert.equal(route.legs[1].destination,'Destino');
+    assert.equal(route.path.length,4);
+  }finally{delete globalThis.window;}
+});
+
 test('missing geometry in any leg prevents toll detection across invented connectors', async () => {
   let index = 0;
   globalThis.window = {google:{maps:{DirectionsService:class {route(input,callback){

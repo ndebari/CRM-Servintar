@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 type GoogleStep = { instructions?: string; distance?: { value: number }; path?: { lat: () => number; lng: () => number }[] };
-type GoogleLeg = { steps?: GoogleStep[]; distance?: { value: number } };
+type GoogleLeg = { steps?: GoogleStep[]; distance?: { value: number }; start_location?: {lat:()=>number;lng:()=>number}; end_location?: {lat:()=>number;lng:()=>number} };
 
 declare global {
   interface Window {
@@ -577,10 +577,20 @@ export async function calculateGoogleRoute(stops: string[]) {
       resolve(selected.leg);
     })));
   }
-  const legPaths = legs.map(leg => (leg.steps ?? []).flatMap(step => (step.path ?? []).map(point => [point.lat(), point.lng()])));
+  const legPaths = legs.map(leg => {
+    const points = (leg.steps ?? []).flatMap(step => (step.path ?? []).map(point => [point.lat(), point.lng()]));
+    // Google can return a single vertex for a zero-distance base/pickup leg.
+    // Keep its position in the journey without inventing a connecting segment.
+    if (leg.distance?.value === 0) {
+      const start = leg.start_location ? [leg.start_location.lat(),leg.start_location.lng()] : points[0];
+      const end = leg.end_location ? [leg.end_location.lat(),leg.end_location.lng()] : points[points.length - 1];
+      if (start && end && start.every((value,index)=>value===end[index])) return [start,end];
+    }
+    return points;
+  });
   // Never join across a missing leg and estimate tolls on an invented connector.
   const completeGeometry = legs.every((leg, index) => legPaths[index].length >= 2 &&
-    (leg.steps ?? []).every(step => step.path && step.path.length >= 2) &&
+    (leg.distance?.value === 0 || (leg.steps ?? []).every(step => step.path && step.path.length >= 2)) &&
     legPaths[index].every(point => point.every(Number.isFinite)));
   return {
     summaries,
@@ -631,6 +641,8 @@ export function CotizadorHome({
   const utilityValid = isValidUtility(draft.utilityPercent);
   const quoteTariff = utilityValid ? calculateTariffFromCost(quoteCost, draft.utilityPercent) : null;
   const [routeStatus, setRouteStatus] = useState('');
+  const [routeRetry,setRouteRetry]=useState(0);
+  const [routeLoading,setRouteLoading]=useState(false);
 
   const latestDraft = useRef(draft);
   const latestOnChange = useRef(onDraftChange);
@@ -645,6 +657,7 @@ export function CotizadorHome({
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
+    setRouteLoading(false);
     const version = manualDistanceVersion.current;
     const changed = previousDistanceKey.current !== distanceKey;
     previousDistanceKey.current = distanceKey;
@@ -664,6 +677,7 @@ export function CotizadorHome({
     }
     const timeout = window.setTimeout(async () => {
       try {
+        setRouteLoading(true);
         setDistanceStatus('Calculando kilómetros con Google…');
         const route = googleRoute.current?.key === distanceKey ? googleRoute.current : await (async () => {
           await loadGooglePlaces();
@@ -683,21 +697,22 @@ export function CotizadorHome({
           body: JSON.stringify({ legs: route.legs, isRoundTrip: latestDraft.current.isRoundTrip,
             returnStartLeg: latestDraft.current.returnFromStop === -1 ? route.legs.length : latestDraft.current.returnFromStop })
         });
+        if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('No se pudo consultar los peajes. Usá Recalcular peajes para reintentar.');
         const result = await response.json();
         if (!response.ok || !Array.isArray(result.tolls)) throw new Error(result.error || 'No se pudo estimar el listado de peajes.');
         if (!active || JSON.stringify([getRouteStops(latestDraft.current), latestDraft.current.isRoundTrip, latestDraft.current.returnFromStop]) !== distanceKey) return;
         latestDraft.current = { ...latestDraft.current, tolls: mergeRouteTolls(result.tolls, latestDraft.current.tolls), tollListStatus: 'pending', tollRouteKey: getTruckRouteKey(latestDraft.current) };
         latestOnChange.current(latestDraft.current);
-        setRouteStatus('');
+        setRouteStatus(result.tolls.length ? `${result.tolls.length} pasadas de peaje detectadas en la ruta de Google.` : 'No se detectaron estaciones en esta ruta. Revisá el recorrido antes de confirmar que no tiene peajes.');
       } catch (error) {
         if (active) {
           if (googleRoute.current?.key !== distanceKey) setDistanceStatus('No se pudo calcular con Google. Podés cargar los kilómetros manualmente.');
           setRouteStatus(error instanceof Error ? error.message : 'No se pudo estimar peajes. Revisá los datos del recorrido.');
         }
-      }
+      } finally {if(active)setRouteLoading(false);}
     }, 700);
     return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
-  }, [distanceKey]);
+  }, [distanceKey,routeRetry]);
 
   const [officialStatus, setOfficialStatus] = useState('');
   const officialLookupKey = JSON.stringify([draft.tollPayment, draft.tolls.map(toll => [toll.id, toll.name, toll.operator, toll.period, toll.direction, toll.payment, toll.source === 'manual' && toll.amount !== null])]);
@@ -966,7 +981,7 @@ export function CotizadorHome({
           <section className="toll-section" aria-label="Peajes para camión">
             <div className="panel-header">
               <div><p className="eyebrow">Tránsito pesado</p><h2>Peajes del recorrido</h2></div>
-              <Truck size={20} />
+              <button type="button" className="ghost-button" disabled={routeLoading || routeStops.some(stop=>!stop.trim())} onClick={()=>{googleRoute.current=null;setRouteRetry(value=>value+1);onDraftChange({...draft,tollListStatus:'pending'});}}>{routeLoading?'Calculando peajes…':'Recalcular peajes'}</button>
             </div>
             <p className="muted-copy">Tractor de 3 ejes + araña de 3 ejes · 6 ejes en total. Una fila por cada paso de peaje, incluida la vuelta.</p>
             {routeStatus && <p className="muted-copy route-status" role="status">{routeStatus}</p>}
