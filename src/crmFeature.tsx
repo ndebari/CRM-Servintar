@@ -180,6 +180,9 @@ export type RouteToll = {
 };
 
 export type TransportQuoteDraft = {
+  historical?: boolean;
+  agreedAmount?: number;
+  effectiveOn?: string;
   random?: boolean;
   clientId: string;
   contactKey?: ContactKey;
@@ -216,6 +219,8 @@ export type TransportQuoteDraft = {
 };
 
 export type PreparedQuote = {
+  historical?: boolean;
+  effectiveOn?: string;
   random?: boolean;
   number?: string;
   sequence?: number;
@@ -351,7 +356,7 @@ export function getQuoteStageErrors(draft: TransportQuoteDraft, clients: Client[
     !Number.isFinite(draft.distanceKm) || draft.distanceKm <= 0 ? 'Completá los kilómetros del recorrido.' : !Number.isInteger(draft.requiredDays) || draft.requiredDays < 1 ? 'Completá los días de operación.' : !isValidUtility(draft.utilityPercent) ? 'Completá la utilidad.' : '',
     !summarizeTolls(draft).ready ? 'Completá y confirmá los peajes del recorrido.' : '',
     !validAdditional ? 'Revisá los importes, bonificaciones y diferencias de los adicionales seleccionados.' : '',
-    ![0,1,100,1000].includes(draft.roundingUnit ?? 0) ? 'Seleccioná el redondeo de la tarifa.' : ''
+    draft.historical && (!Number.isFinite(draft.agreedAmount) || draft.agreedAmount! <= 0 || !validDate(draft.effectiveOn || '')) ? 'Completá el importe acordado y la fecha de vigencia.' : ![0,1,100,1000].includes(draft.roundingUnit ?? 0) ? 'Seleccioná el redondeo de la tarifa.' : ''
   ];
 }
 
@@ -370,7 +375,7 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
   }
   const totalCost = baseAmount + tollSummary.total;
   const unroundedAmount = calculateTariffFromCost(totalCost, draft.utilityPercent);
-  const totalAmount = roundQuoteTariff(unroundedAmount, draft.roundingUnit);
+  const totalAmount = draft.historical ? draft.agreedAmount! : roundQuoteTariff(unroundedAmount, draft.roundingUnit);
   const contact = getClientContacts(client).find(item => item.key === draft.contactKey)?.contact;
   const additionalsText =
     draft.additionals.length === 0
@@ -385,6 +390,8 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
 
   return {
     id: crypto.randomUUID(),
+    historical: draft.historical === true,
+    effectiveOn: draft.historical ? draft.effectiveOn : undefined,
     random: draft.random === true,
     createdAt: new Date().toISOString(),
     clientSnapshot: client ? structuredClone(client) : undefined,
@@ -399,6 +406,7 @@ export function buildPreparedQuote(draft: TransportQuoteDraft, clients: Client[]
     requiredAction: draft.random ? '' : 'Enviar al cliente',
     amount: totalAmount,
     text: [
+      ...(draft.historical ? [`Carga histórica · Vigente desde: ${draft.effectiveOn}`, `Importe acordado: ${currency.format(totalAmount)}. Los costos calculados son solo una referencia actual.`, ''] : []),
       draft.random ? 'Cotización de consulta sin cliente' : `Estimados ${client?.alias ?? client?.businessName ?? 'cliente'},`,
       ...(contact ? [`Contacto: ${contact.fullName}${contact.role ? ' · ' + contact.role : ''}`,`Email: ${contact.email || '—'} · Teléfono: ${contact.phone || '—'}`] : []),
       `Fecha de solicitud: ${draft.requestDate} · Fecha de cotización: ${draft.quoteDate}`,
@@ -826,7 +834,7 @@ export function CotizadorHome({
 
   return (
     <div className="module-frame">
-      <header className="topbar quote-topbar"><div><h1>Cotizador</h1></div><SessionControls /></header>
+      <header className="topbar quote-topbar"><div><h1>{draft.historical ? 'Cargar tarifa vigente' : 'Cotizador'}</h1></div><SessionControls /></header>
 <div className="module-scroll quote-wizard">
       <nav className="quote-steps" aria-label="Etapas del cotizador">{stages.map((label,index) => <button key={label} type="button" aria-current={stage===index ? 'step' : undefined} disabled={index>stage || isSaving} onClick={() => changeStage(index)}><span>{index+1}</span>{label}</button>)}</nav>
       <div className="panel wizard-panel">
@@ -1101,6 +1109,7 @@ export function CotizadorHome({
           </div>
         </section>
         <section hidden={stage!==5} aria-label="Detalle final">
+          {draft.historical && <div className="form-grid"><label>Importe acordado (ARS, sin impuestos)<input type="number" min="0.01" step="0.01" value={draft.agreedAmount ?? ''} onChange={e=>updateDraft('agreedAmount',e.target.valueAsNumber)}/></label><label>Vigente desde<input type="date" value={draft.effectiveOn || ''} onChange={e=>updateDraft('effectiveOn',e.target.value)}/></label></div>}
           <div className="review-details"><div><h3>Cliente y contacto</h3><p><strong>{selectedClient?.alias || selectedClient?.businessName}</strong></p><p>{selectedClient?.businessName} · CUIT {selectedClient?.cuit}</p><p>{selectedContact?.fullName} · {selectedContact?.role}</p><p>{selectedContact?.email} · {selectedContact?.phone}</p><p>Solicitud: {draft.requestDate} · Cotización: {draft.quoteDate}</p></div>
           <div><h3>Servicio</h3><p>{transportLabels[draft.transportKind]} · {draft.isRoundTrip ? 'Roundtrip' : 'Solo ida'}</p><p>{baseName(draft.base)} · {routeAddress(draft.base)}</p><p>{draft.distanceKm.toLocaleString('es-AR')} km · {draft.requiredDays} día(s) de operación</p></div></div>
           {draft.operationDescription?.trim() && <div className="operation-description"><h3>Descripción de la operación</h3><p style={{whiteSpace:'pre-wrap'}}>{draft.operationDescription}</p></div>}
@@ -1120,9 +1129,9 @@ export function CotizadorHome({
           </dl><p className="tariff-formula">Tarifa = total costo / (1 − utilidad / 100)</p>
           <label className="rounding-control">Redondeo<select value={draft.roundingUnit ?? 0} onChange={event => updateDraft('roundingUnit',Number(event.target.value))}><option value={0}>Sin redondeo adicional</option><option value={1}>Al peso superior</option><option value={100}>Al múltiplo superior de $100</option><option value={1000}>Al múltiplo superior de $1.000</option></select></label>
           <p>Ajuste por redondeo: {roundedTariff === null || quoteTariff === null ? 'Pendiente' : exactCurrency(roundedTariff-quoteTariff)}</p>
-          <div className="toll-total"><span>Tarifa final</span><strong>{roundedTariff === null ? 'Pendiente' : exactCurrency(roundedTariff)}</strong></div></div>
+          <div className="toll-total"><span>{draft.historical ? 'Importe acordado' : 'Tarifa final'}</span><strong>{draft.historical ? exactCurrency(draft.agreedAmount || 0) : roundedTariff === null ? 'Pendiente' : exactCurrency(roundedTariff)}</strong></div></div>
           <div><h3>Peajes incluidos</h3>{getTollGroups(draft).map(group => <div key={group.id}><h4>{group.title}</h4>{!group.rows.length ? <p>Sin peajes.</p> : <ul>{group.rows.map(({toll}) => <li key={toll.id}>{toll.name} · {toll.locality} · {toll.travelSense || 'Sentido sin informar'} — {toll.amount === null ? 'Pendiente' : exactCurrency(toll.amount)}</li>)}</ul>}</div>)}
-          <h3>Adicionales a demanda</h3><p>No incluidos en el total. Se cobran solo si se producen.</p>{!draft.additionals.length ? <p>Sin adicionales.</p> : <ul className="review-additionals">{draft.additionals.map(item => <li key={item.id}><strong>{item.name} — {exactCurrency(calculateAdditionalAmount(item,roundedTariff ?? 0))}</strong><p>{item.kind==='percent' ? item.amount+'% del transporte' : exactCurrency(item.amount)} · Bonificación {item.discountPercent}%</p>{item.description && <p>{item.description}</p>}</li>)}</ul>}</div></div>
+          <h3>Adicionales a demanda</h3><p>No incluidos en el total. Se cobran solo si se producen.</p>{!draft.additionals.length ? <p>Sin adicionales.</p> : <ul className="review-additionals">{draft.additionals.map(item => <li key={item.id}><strong>{item.name} — {exactCurrency(calculateAdditionalAmount(item,draft.historical ? draft.agreedAmount || 0 : roundedTariff ?? 0))}</strong><p>{item.kind==='percent' ? item.amount+'% del transporte' : exactCurrency(item.amount)} · Bonificación {item.discountPercent}%</p>{item.description && <p>{item.description}</p>}</li>)}</ul>}</div></div>
         </section>
       </div>
       <footer className="wizard-footer">

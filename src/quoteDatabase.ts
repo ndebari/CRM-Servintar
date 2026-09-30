@@ -10,7 +10,8 @@ export type CrmData={clients:Client[];quotes:PreparedQuote[];clientTypes:string[
 export async function readDatabase() {
  const data=await crmRpc<CrmData>('crm_read');
  if(data.schemaVersion!==1 || !Array.isArray(data.clients) || !Array.isArray(data.quotes)) throw new Error('La estructura de Supabase no es compatible.');
- return {...data,additionals:data.additionals.map(item=>({...item,amount:item.amount ?? undefined}))};
+ const historical=await crmRpc<PreparedQuote[]>('crm_read_historical_tariffs');
+ return {...data,quotes:[...data.quotes,...historical],additionals:data.additionals.map(item=>({...item,amount:item.amount ?? undefined}))};
 }
 export const storeClient=(client:Client)=>crmRpc<Client>('crm_save_client',{p_client:client});
 export const removeClient=(id:string)=>crmRpc<void>('crm_delete_client',{p_id:id});

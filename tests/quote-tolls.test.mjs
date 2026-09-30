@@ -390,3 +390,15 @@ test('CUIT checks exact length, allowed formatting and modulo 11 checksum withou
  assert.equal(validateCuit('20000000060'),'');
  assert.notEqual(validateCuit('20000000010'),'');
 });
+
+ test('historical client tariff preserves agreed price and full quote without recalculating its amount',()=>{
+ const client=initialClients[0];
+ const draft={...createQuoteDraft(client.id),historical:true,contactKey:'commercialContact',transportKind:'carreton',origin:'Carga',destination:'Descarga',distanceKm:100,requiredDays:1,utilityPercent:20,agreedAmount:123456.78,effectiveOn:'2024-05-01'};
+ draft.tollRouteKey=getTruckRouteKey(draft);draft.tollListStatus='manual';
+ assert.ok(getQuoteStageErrors(draft,[client]).every(e=>!e));
+ assert.match(getQuoteStageErrors({...draft,agreedAmount:0},[client])[5],/importe/);
+ assert.match(getQuoteStageErrors({...draft,effectiveOn:'2024-02-30'},[client])[5],/vigencia/);
+ const quote=buildPreparedQuote(draft,[client],{perDay:5000,perKm:100});
+ assert.equal(quote.amount,123456.78);assert.equal(quote.effectiveOn,'2024-05-01');assert.equal(quote.historical,true);
+ assert.deepEqual(quote.draft,draft);assert.match(quote.text,/Carga histórica/);
+ });

@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
+const db=new PGlite();
+const owner='11111111-1111-4111-8111-111111111111', user='22222222-2222-4222-8222-222222222222';
+try {
+ await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated;`);
+ const apply=async file=>db.exec(fs.readFileSync(new URL('../supabase/'+file,import.meta.url),'utf8'));
+ await apply('crm-complete.sql');await apply('crm-cloud-activation.sql');
+ await db.exec(`insert into auth.users values('${owner}','ndebari@servintar.com.ar',now())`);
+ for(const f of ['crm-admin-access.sql','crm-client-access.sql','crm-pending-users.sql','crm-historical-tariffs.sql','crm-historical-tariffs.sql'])await apply(f);
+ await db.exec(`insert into auth.users values('${user}','pending@example.com',now());set role authenticated;set request.jwt.claim.sub='${owner}';`);
+ await db.query('select public.crm_save_client($1)',[{id:'a',cuit:'30707637427',alias:'A',businessName:'Empresa A'}]);
+ const q={id:'33333333-3333-4333-8333-333333333333',clientId:'a',amount:125000,effectiveOn:'2025-03-01',text:'Tarifa vigente anterior',draft:{clientId:'a',origin:'Origen',destination:'Destino',additionals:[],agreedAmount:125000}};
+ const save=async payload=>(await db.query('select public.crm_save_historical_tariff($1) as data',[payload])).rows[0].data;
+ const saved=await save(q);assert.equal(saved.historical,true);assert.equal(saved.amount,125000);assert.equal(saved.effectiveOn,'2025-03-01');assert.deepEqual(saved.draft,q.draft);assert.equal(saved.approvedAt,undefined);
+ assert.deepEqual(await save(q),saved);
+ await assert.rejects(save({...q,amount:9}),/otros datos/);
+ await assert.rejects(save({...q,id:'44444444-4444-4444-8444-444444444444',amount:0}),/importe/);
+ assert.equal((await db.query('select count(*)::int as n from public.crm_quotes')).rows[0].n,0);
+ await db.exec(`set request.jwt.claim.sub='${user}'`);
+ await assert.rejects(save(q),/autorizado/);
+ await assert.rejects(db.query('select public.crm_read_historical_tariffs()'),/autorizado/);
+ await db.exec(`set request.jwt.claim.sub='${owner}'`);
+ await db.query('select public.crm_admin_authorize($1,true)',['pending@example.com']);
+ await db.exec(`set request.jwt.claim.sub='${user}'`);await db.query('select public.crm_claim_access()');
+ assert.deepEqual((await db.query('select public.crm_read_historical_tariffs() as data')).rows[0].data,[]);
+ await assert.rejects(save(q),/autorizado/);
+ assert.equal((await db.query('select * from public.crm_historical_tariffs')).rows.length,0);
+ await db.exec(`set request.jwt.claim.sub='${owner}'`);await db.query('select public.crm_admin_set_clients($1,$2)',['pending@example.com',['a']]);
+ await db.exec(`set request.jwt.claim.sub='${user}'`);
+ assert.equal((await db.query('select public.crm_read_historical_tariffs() as data')).rows[0].data.length,1);
+ assert.deepEqual(await save(q),saved);
+ await assert.rejects(db.query('delete from public.crm_historical_tariffs'),/permission denied/);
+ console.log('PASS: historical tariff persistence, complete draft, amount, date, idempotency, validation and client permissions');
+} finally {await db.close();}

@@ -323,12 +323,14 @@ function App() {
     if(revisionParent && (quoteDraft.random || quoteDraft.clientId!==revisionParent.clientId)) return 'La recotización debe conservar el cliente original.';
     const saveKey=JSON.stringify({quoteDraft,parent:revisionParent?.id,totals});
     if(!pendingSave.current || pendingSave.current.key!==saveKey)pendingSave.current={key:saveKey,quote:buildPreparedQuote(quoteDraft,clients,totals)};
-    const saved=quoteDraft.random
+    const saved=quoteDraft.historical
+      ? await crmRpc<PreparedQuote>('crm_save_historical_tariff',{p_quote:pendingSave.current.quote})
+      : quoteDraft.random
       ? await crmRpc<PreparedQuote>('crm_create_random_quote',{p_quote:pendingSave.current.quote})
       : await storeQuote(pendingSave.current.quote,revisionParent?.id);
     if (!quoteDraft.random) await refreshDatabase();
     setQuoteFocus(saved.id);setRevisionParent(null);
-    setQuoteDraft(createQuoteDraft(quoteDraft.clientId));pendingSave.current=null;setView(quoteDraft.random ? 'random' : 'cotizaciones');
+    setQuoteDraft(createQuoteDraft(quoteDraft.clientId));pendingSave.current=null;setView(quoteDraft.historical ? 'precios' : quoteDraft.random ? 'random' : 'cotizaciones');
     return undefined;
   };
   const updateQuote = async (id:string, action:'send'|'approve', contactKey?:string) => {
@@ -384,6 +386,7 @@ function App() {
         {databaseError && <p role="alert">{databaseError} <button className="ghost-button" onClick={()=>void refreshDatabase().catch(()=>setDatabaseError('No se pudo conectar a Supabase.'))}>Reintentar</button></p>}
         {!databaseReady && !databaseError && <p>Cargando registros…</p>}
         {view==='cotizador' && revisionParent && <section className="panel"><strong>Recotización {quoteNumber(revisionParent.sequence!, Math.max(0,...quotes.filter(q=>(q.rootId || q.id)===(revisionParent.rootId || revisionParent.id)).map(q=>q.revision || 0))+1)}</strong><p>Origen: {revisionParent.number}. La versión se confirma al guardar.</p><button type="button" className="ghost-button" onClick={()=>{setRevisionParent(null);setQuoteDraft(createQuoteDraft(quoteDraft.clientId));}}>Cancelar recotización</button></section>}
+        {view==='cotizador' && quoteDraft.historical && <section className="panel"><p>Cargá el servicio completo. En el último paso ingresá el importe acordado y la fecha desde la que está vigente.</p><button type="button" className="ghost-button" onClick={()=>{setQuoteDraft(createQuoteDraft(''));setView('precios');}}>Cancelar carga histórica</button></section>}
         {view === 'cotizador' && (
           <CotizadorHome
             additionalCatalog={additionalCatalog}
@@ -393,7 +396,7 @@ function App() {
             onDraftChange={setQuoteDraft}
             onPrepareQuote={prepareQuote}
             totals={totals}
-            allowRandom={!revisionParent}
+            allowRandom={!revisionParent && !quoteDraft.historical}
           />
         )}
         {view === 'abm' && <><AbmModule additionalCatalog={additionalCatalog} onAdditionalsChange={saveAdditionalCatalog} additionalStatus={additionalStatus} clientTypes={clientTypes} clients={clients} onClientTypesChange={saveClientTypes} /></>}
@@ -406,7 +409,7 @@ function App() {
             onDeleteClient={deleteClient}
           />
         )}
-        {(view === 'cotizaciones' || view === 'precios') && <QuotesModule clients={clients} quotes={quotes} priceList={view==='precios'} focusId={quoteFocus} onChange={updateQuote} onRequote={requote} />}
+        {(view === 'cotizaciones' || view === 'precios') && <QuotesModule clients={clients} quotes={quotes} priceList={view==='precios'} onCreateTariff={(clientId)=>{setRevisionParent(null);setQuoteDraft({...createQuoteDraft(clientId),historical:true});setView('cotizador');}} focusId={quoteFocus} onChange={updateQuote} onRequote={requote} />}
         {view === 'random' && <RandomQuotesModule focusId={quoteFocus} onCreate={() => {setRevisionParent(null);setQuoteDraft({...createQuoteDraft(''),random:true});setView('cotizador');}} />}
         {view === 'costos' && (
           <CostStructure
