@@ -11,7 +11,7 @@ try {
  for(const f of ['crm-admin-access.sql','crm-client-access.sql','crm-pending-users.sql','crm-historical-tariffs.sql','crm-historical-tariffs.sql'])await apply(f);
  await db.exec(`insert into auth.users values('${user}','pending@example.com',now());set role authenticated;set request.jwt.claim.sub='${owner}';`);
  await db.query('select public.crm_save_client($1)',[{id:'a',cuit:'30707637427',alias:'A',businessName:'Empresa A'}]);
- const q={id:'33333333-3333-4333-8333-333333333333',clientId:'a',amount:125000,effectiveOn:'2025-03-01',text:'Tarifa vigente anterior',draft:{clientId:'a',origin:'Origen',destination:'Destino',additionals:[],agreedAmount:125000}};
+ const q={id:'33333333-3333-4333-8333-333333333333',clientId:'a',amount:125000,effectiveOn:'2025-03-01',text:'Tarifa vigente anterior',draft:{clientId:'a',transportKind:'impo',isRoundTrip:true,pickup:'Terminal',destination:'Destino',delivery:'Depósito',effectiveMonth:'2025-03'}};
  const save=async payload=>(await db.query('select public.crm_save_historical_tariff($1) as data',[payload])).rows[0].data;
  const saved=await save(q);assert.equal(saved.historical,true);assert.equal(saved.amount,125000);assert.equal(saved.effectiveOn,'2025-03-01');assert.deepEqual(saved.draft,q.draft);assert.equal(saved.approvedAt,undefined);
  assert.deepEqual(await save(q),saved);

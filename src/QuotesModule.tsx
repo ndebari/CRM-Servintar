@@ -1,15 +1,17 @@
+import { HistoricalTariffForm } from './HistoricalTariffForm';
 import { SessionControls } from './SessionControls';
 import { useState } from 'react';
 import { getClientContacts, type Client, type PreparedQuote } from './crmFeature';
 const money = new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'});
 const day = (value:string) => { const d=new Date(value);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); };
 const date = (value?:string) => value ? new Date(value).toLocaleString('es-AR') : 'Sin registrar';
-export function QuotesModule({ clients, quotes, priceList = false, onChange, onRequote, onCreateTariff, focusId }: {
- onCreateTariff:(clientId:string)=>void;
+export function QuotesModule({ clients, quotes, priceList = false, onChange, onRequote, onTariffSaved, focusId }: {
+ onTariffSaved:()=>Promise<void>;
  clients:Client[]; quotes:PreparedQuote[]; priceList?:boolean; focusId?:string;
  onChange:(id:string,action:'send'|'approve',contactKey?:string)=>Promise<void>;
  onRequote:(quote:PreparedQuote)=>void;
 }) {
+ const [creating,setCreating]=useState(false);
  const initial=quotes.find(q=>q.id===focusId);
  const [clientId,setClientId]=useState(initial?.clientId || '');
  const [state,setState]=useState(''); const [from,setFrom]=useState(''); const [to,setTo]=useState('');
@@ -25,7 +27,8 @@ export function QuotesModule({ clients, quotes, priceList = false, onChange, onR
  return <div className="module-frame">
   <header className="topbar"><div><h1>{priceList?'Tarifas vigentes':'Cotizaciones'}</h1></div><SessionControls /></header>
 <div className="module-scroll">
-  {priceList && <button className="primary-button" type="button" onClick={()=>onCreateTariff(clientId)}>Cargar tarifa vigente</button>}
+  {priceList && <button className="primary-button" type="button" onClick={()=>setCreating(true)}>Cargar tarifa vigente</button>}
+  {priceList && creating && <HistoricalTariffForm clients={clients} initialClientId={clientId} onCancel={()=>setCreating(false)} onSaved={async()=>{await onTariffSaved();setCreating(false);}}/>}
   <section className="panel"><div className="form-grid">
    <label>Cliente<select value={clientId} onChange={e=>{setClientId(e.target.value);setSelectedId('');setError('');}}><option value="">Seleccionar cliente</option>{[...options].map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
    <label>Creada desde<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
@@ -34,11 +37,11 @@ export function QuotesModule({ clients, quotes, priceList = false, onChange, onR
   </div><button type="button" className="ghost-button" onClick={()=>{setClientId('');setSelectedId('');setState('');setFrom('');setTo('');}}>Limpiar filtros</button></section>
   {!clientId ? <p className="muted-copy">Seleccioná un cliente para ver {priceList?'sus tarifas aprobadas':'sus cotizaciones'}.</p> : <section className="panel quote-register">
    <h2>{priceList?'Tarifas aprobadas':'Cotizaciones del cliente'}</h2>
-   {!filtered.length ? <p>No hay registros para estos filtros.</p> : <div className="quote-table-scroll"><table className="quote-register-table"><thead><tr><th>Número</th><th>Fecha de creación</th><th>Servicio</th><th>Estado</th><th>Tarifa</th></tr></thead><tbody>{filtered.map(q=><tr key={q.id}><td><button className="ghost-button" type="button" onClick={()=>open(q)}>{q.historical ? 'Tarifa histórica' : q.number}</button></td><td>{date(q.createdAt)}</td><td>{q.summary}</td><td>{q.historical ? `Carga histórica · Vigente desde ${q.effectiveOn}` : q.state}</td><td>{money.format(q.amount)}</td></tr>)}</tbody></table></div>}
+   {!filtered.length ? <p>No hay registros para estos filtros.</p> : <div className="quote-table-scroll"><table className="quote-register-table"><thead><tr><th>Número</th><th>Fecha de creación</th><th>Servicio</th><th>Estado</th><th>Tarifa</th></tr></thead><tbody>{filtered.map(q=><tr key={q.id}><td><button className="ghost-button" type="button" onClick={()=>open(q)}>{q.historical ? 'Tarifa histórica' : q.number}</button></td><td>{date(q.createdAt)}</td><td>{q.summary}</td><td>{q.historical ? `Carga histórica · Vigente desde ${q.effectiveOn?.slice(5,7)}/${q.effectiveOn?.slice(0,4)}` : q.state}</td><td>{money.format(q.amount)}</td></tr>)}</tbody></table></div>}
   </section>}
   {selected && selected.clientId===clientId && <section className="panel quote-record" aria-label="Detalle de cotización">
    <div className="panel-header"><h2>{selected.historical ? 'Tarifa histórica' : selected.number} · {selected.clientName}</h2><button className="ghost-button" type="button" onClick={()=>setSelectedId('')}>Cerrar detalle</button></div>
-   <p>{selected.historical ? `Carga histórica · Vigente desde ${selected.effectiveOn}` : selected.state} · Creada: {date(selected.createdAt)}</p>
+   <p>{selected.historical ? `Carga histórica · Vigente desde ${selected.effectiveOn?.slice(5,7)}/${selected.effectiveOn?.slice(0,4)}` : selected.state} · Creada: {date(selected.createdAt)}</p>
    {selected.sentTo && <p>Enviada a {selected.sentTo.fullName}{selected.sentTo.email?' · '+selected.sentTo.email:''} · {date(selected.sentAt)}</p>}
    {selected.approvedAt && <p>Aprobada: {date(selected.approvedAt)}</p>}
    {family.length>1 && <nav className="quote-family" aria-label="Original y recotizaciones">{family.map(q=><button type="button" className="ghost-button" key={q.id} disabled={q.id===selected.id} onClick={()=>open(q)}>{q.revision?'Recotización':'Original'} {q.historical ? 'Tarifa histórica' : q.number}</button>)}</nav>}

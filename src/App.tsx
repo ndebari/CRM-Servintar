@@ -409,7 +409,7 @@ function App() {
             onDeleteClient={deleteClient}
           />
         )}
-        {(view === 'cotizaciones' || view === 'precios') && <QuotesModule clients={clients} quotes={quotes} priceList={view==='precios'} onCreateTariff={(clientId)=>{setRevisionParent(null);setQuoteDraft({...createQuoteDraft(clientId),historical:true});setView('cotizador');}} focusId={quoteFocus} onChange={updateQuote} onRequote={requote} />}
+        {(view === 'cotizaciones' || view === 'precios') && <QuotesModule clients={clients} quotes={quotes} priceList={view==='precios'} onTariffSaved={refreshDatabase} focusId={quoteFocus} onChange={updateQuote} onRequote={requote} />}
         {view === 'random' && <RandomQuotesModule focusId={quoteFocus} onCreate={() => {setRevisionParent(null);setQuoteDraft({...createQuoteDraft(''),random:true});setView('cotizador');}} />}
         {view === 'costos' && (
           <CostStructure
